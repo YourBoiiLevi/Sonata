@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini API Chat</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.2/marked.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        #messageInput {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        #sendButton {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        #sendButton:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        #mediaInput {
+            margin: 10px 0;
+        }
+        
+        #mediaPreview {
+            margin: 10px 0;
+            max-width: 300px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            display: none;
+        }
+        
+        #clearMedia {
+            margin-left: 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: none;
+        }
+        
+        #mediaInfo {
+            margin: 10px 0;
+            padding: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        #response {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+            min-height: 50px;
+            line-height: 1.6;
+        }
+        
+        #response h1, #response h2, #response h3 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+        
+        #response h1 { border-bottom: 2px solid #eee; padding-bottom: 0.3em; }
+        #response h2 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        
+        #response code {
+            background: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        
+        #response pre {
+            background: #f4f4f4;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border-left: 4px solid #007bff;
+        }
+        
+        #response pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        #response blockquote {
+            border-left: 4px solid #ddd;
+            margin: 0;
+            padding-left: 16px;
+            color: #666;
+        }
+        
+        #response ul, #response ol {
+            padding-left: 20px;
+        }
+        
+        #response table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+        
+        #response th, #response td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        #response th {
+            background: #f2f2f2;
+            font-weight: bold;
+        }
+        
+        #response mark {
+            background: #ffeb3b;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Gemini API Chat</h1>
+    
+    <div>
+        <input type="text" id="messageInput" placeholder="Enter your message..." />
+        <div>
+            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" onchange="previewMedia()" />
+            <button id="clearMedia" onclick="clearMedia()">Clear Media</button>
+        </div>
+        <div id="mediaInfo"></div>
+        <img id="mediaPreview" alt="Media preview" />
+        <video id="videoPreview" controls style="display: none; max-width: 300px;"></video>
+        <audio id="audioPreview" controls style="display: none; max-width: 300px;"></audio>
+        <button id="sendButton" onclick="sendMessage()">Send</button>
+    </div>
+    
+    <div id="response">Response will appear here...</div>
+
+    <script>
+        let accumulatedText = '';
+        let selectedMedia = null;
+        
+        // Custom function to handle ==highlight== syntax
+        function parseCustomMarkdown(text) {
+            // First convert ==text== to <mark>text</mark>
+            text = text.replace(/==(.*?)==/g, '<mark>$1</mark>');
+            
+            // Then parse with marked.js
+            return marked.parse(text);
+        }
+        
+        function previewMedia() {
+            const input = document.getElementById('mediaInput');
+            const imgPreview = document.getElementById('mediaPreview');
+            const videoPreview = document.getElementById('videoPreview');
+            const audioPreview = document.getElementById('audioPreview');
+            const mediaInfo = document.getElementById('mediaInfo');
+            const clearBtn = document.getElementById('clearMedia');
+            
+            // Hide all previews first
+            imgPreview.style.display = 'none';
+            videoPreview.style.display = 'none';
+            audioPreview.style.display = 'none';
+            mediaInfo.style.display = 'none';
+            
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    clearBtn.style.display = 'inline-block';
+                    selectedMedia = file;
+                    
+                    // Show file info
+                    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                    mediaInfo.innerHTML = `<strong>${file.name}</strong><br>Type: ${file.type}<br>Size: ${fileSizeMB} MB`;
+                    mediaInfo.style.display = 'block';
+                    
+                    // Show appropriate preview based on file type
+                    if (file.type.startsWith('image/')) {
+                        imgPreview.src = e.target.result;
+                        imgPreview.style.display = 'block';
+                    } else if (file.type.startsWith('video/')) {
+                        videoPreview.src = e.target.result;
+                        videoPreview.style.display = 'block';
+                    } else if (file.type.startsWith('audio/')) {
+                        audioPreview.src = e.target.result;
+                        audioPreview.style.display = 'block';
+                    }
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        function clearMedia() {
+            document.getElementById('mediaInput').value = '';
+            document.getElementById('mediaPreview').style.display = 'none';
+            document.getElementById('videoPreview').style.display = 'none';
+            document.getElementById('audioPreview').style.display = 'none';
+            document.getElementById('mediaInfo').style.display = 'none';
+            document.getElementById('clearMedia').style.display = 'none';
+            selectedMedia = null;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const button = document.getElementById('sendButton');
+            const responseDiv = document.getElementById('response');
+            
+            const message = input.value.trim();
+            if (!message && !selectedMedia) return;
+            
+            // Disable button and show loading
+            button.disabled = true;
+            responseDiv.textContent = 'Thinking...';
+            responseDiv.className = 'loading';
+            accumulatedText = '';
+            
+            try {
+                // Prepare the request body
+                const requestBody = { message: message || '' };
+                
+                // If there's media, convert it to base64
+                if (selectedMedia) {
+                    const mediaData = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+                            const base64 = reader.result.split(',')[1];
+                            resolve({
+                                data: base64,
+                                mimeType: selectedMedia.type
+                            });
+                        };
+                        reader.readAsDataURL(selectedMedia);
+                    });
+                    requestBody.media = mediaData;
+                }
+                
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                responseDiv.className = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    accumulatedText += chunk;
+                    
+                    // Parse and render markdown with custom highlighting
+                    responseDiv.innerHTML = parseCustomMarkdown(accumulatedText);
+                }
+                
+            } catch (error) {
+                responseDiv.textContent = 'Error: ' + error.message;
+                responseDiv.className = '';
+            } finally {
+                button.disabled = false;
+                // Clear the input and media after sending
+                input.value = '';
+                if (selectedMedia) {
+                    clearMedia();
+                }
+            }
+        }
+        
+        // Allow sending with Enter key
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
