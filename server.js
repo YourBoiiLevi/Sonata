@@ -30,7 +30,8 @@ app.get('/', (req, res) => {
 // API endpoint for chat
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, media } = req.body;
+    const { message, media, model } = req.body;
+    const selectedModel = model || 'gemini-2.5-flash';
     
     if (!message && !media) {
       return res.status(400).json({ error: 'Message or media is required' });
@@ -77,7 +78,7 @@ app.post('/api/chat', async (req, res) => {
     
     // Generate streaming response from Gemini
     const response = await ai.models.generateContentStream({
-      model: "gemini-2.5-flash",
+      model: selectedModel,
       contents: [
         {
           role: "user",
