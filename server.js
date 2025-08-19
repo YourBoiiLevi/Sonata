@@ -30,7 +30,8 @@ app.get('/', (req, res) => {
 // API endpoint for chat
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, media } = req.body;
+    const { message, media, model, config } = req.body;
+    const selectedModel = model || 'gemini-2.5-flash';
     
     if (!message && !media) {
       return res.status(400).json({ error: 'Message or media is required' });
@@ -76,16 +77,8 @@ app.post('/api/chat', async (req, res) => {
     }
     
     // Generate streaming response from Gemini
-    const response = await ai.models.generateContentStream({
-      model: "gemini-2.5-flash",
-      contents: [
-        {
-          role: "user",
-          parts: parts
-        }
-      ],
-      config: {
-        systemInstruction: `You are a helpful AI assistant. You can format your responses using Markdown syntax for better readability:
+    const generationConfig = {
+      systemInstruction: `You are a helpful AI assistant. You can format your responses using Markdown syntax for better readability:
 
 ## Basic Formatting
 - Use **bold** for emphasis and *italics* for subtle emphasis
@@ -109,7 +102,52 @@ app.post('/api/chat', async (req, res) => {
 - Choose appropriate formatting based on content - don't feel obligated to use advanced features unless they genuinely improve the response
 
 When analyzing media files (images, videos, audio), describe what you see/hear in detail and answer any questions about the content. Format your responses to be clear and well-structured, using these formatting options naturally where they add value.`
+    };
+
+    if (config) {
+      if (config.thinkingBudget !== undefined) {
+        generationConfig.thinkingConfig = {
+          thinkingBudget: config.thinkingBudget
+        };
       }
+      if (config.temperature !== undefined) {
+        generationConfig.temperature = config.temperature;
+      }
+      if (config.topP !== undefined) {
+        generationConfig.topP = config.topP;
+      }
+      if (config.topK !== undefined) {
+        generationConfig.topK = config.topK;
+      }
+      if (config.seed !== undefined) {
+        generationConfig.seed = config.seed;
+      }
+      if (config.presencePenalty !== undefined) {
+        generationConfig.presencePenalty = config.presencePenalty;
+      }
+      if (config.frequencyPenalty !== undefined) {
+        generationConfig.frequencyPenalty = config.frequencyPenalty;
+      }
+      // if (config.responseLogprobs !== undefined) {
+      //   generationConfig.responseLogprobs = config.responseLogprobs;
+      // }
+      // if (config.logprobs !== undefined) {
+      //   generationConfig.logprobs = config.logprobs;
+      // }
+      if (config.mediaResolution) {
+        generationConfig.mediaResolution = config.mediaResolution;
+      }
+    }
+
+    const response = await ai.models.generateContentStream({
+      model: selectedModel,
+      contents: [
+        {
+          role: "user",
+          parts: parts
+        }
+      ],
+      config: generationConfig
     });
     
     // Stream chunks back to client
