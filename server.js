@@ -113,6 +113,27 @@ When analyzing media files (images, videos, audio), describe what you see/hear i
       if (config.temperature !== undefined) {
         generationConfig.temperature = config.temperature;
       }
+      if (config.topP !== undefined) {
+        generationConfig.topP = config.topP;
+      }
+      if (config.topK !== undefined) {
+        generationConfig.topK = config.topK;
+      }
+      if (config.seed !== undefined) {
+        generationConfig.seed = config.seed;
+      }
+      if (config.presencePenalty !== undefined) {
+        generationConfig.presencePenalty = config.presencePenalty;
+      }
+      if (config.frequencyPenalty !== undefined) {
+        generationConfig.frequencyPenalty = config.frequencyPenalty;
+      }
+      // if (config.responseLogprobs !== undefined) {
+      //   generationConfig.responseLogprobs = config.responseLogprobs;
+      // }
+      // if (config.logprobs !== undefined) {
+      //   generationConfig.logprobs = config.logprobs;
+      // }
       if (config.mediaResolution) {
         generationConfig.mediaResolution = config.mediaResolution;
       }
