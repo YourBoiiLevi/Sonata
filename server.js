@@ -38,7 +38,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// File upload endpoint
+// File upload endpoint using direct REST API
 app.post('/api/upload', upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
@@ -46,22 +46,6 @@ app.post('/api/upload', upload.single('document'), async (req, res) => {
     }
 
     const file = req.file;
-    const supportedTypes = [
-      // Text formats
-      'text/plain', 'text/markdown', 'text/csv',
-      // Document formats
-      'application/pdf',
-      // Code formats
-      'text/html', 'text/css', 'text/javascript', 'application/javascript',
-      'text/x-python', 'application/x-python-code', 'text/x-java-source',
-      'text/x-c', 'text/x-c++', 'text/x-csharp', 'text/x-go', 'text/x-rust',
-      'text/x-php', 'text/x-ruby', 'text/x-shell', 'application/json',
-      'application/xml', 'text/xml', 'application/yaml', 'text/yaml',
-      // Additional formats
-      'application/rtf', 'text/rtf'
-    ];
-
-    // Check file extension for additional validation
     const allowedExtensions = [
       '.pdf', '.txt', '.md', '.csv', '.json', '.xml', '.yaml', '.yml',
       '.html', '.htm', '.css', '.js', '.jsx', '.ts', '.tsx',
@@ -71,137 +55,141 @@ app.post('/api/upload', upload.single('document'), async (req, res) => {
 
     const fileExtension = path.extname(file.originalname).toLowerCase();
     const isValidExtension = allowedExtensions.includes(fileExtension);
-    const isValidMimeType = supportedTypes.includes(file.mimetype) || 
-                           file.mimetype.startsWith('text/') ||
-                           file.mimetype === 'application/octet-stream'; // For files without proper MIME type
 
-    if (!isValidExtension && !isValidMimeType) {
-      // Clean up uploaded file
+    if (!isValidExtension) {
       fs.unlinkSync(file.path);
       return res.status(400).json({ 
-        error: `Unsupported file type. Supported formats: PDF, text files, code files, and data files.` 
+        error: `Unsupported file type. Supported formats: ${allowedExtensions.join(', ')}` 
       });
     }
 
     try {
-      // Check if file exists and get its stats
-      const fileStats = fs.statSync(file.path);
-      
-      // Determine MIME type based on file extension if not provided
-      let mimeType = file.mimetype;
-      if (!mimeType || mimeType === 'application/octet-stream') {
-        const ext = path.extname(file.originalname).toLowerCase();
-        const mimeTypes = {
-          '.pdf': 'application/pdf',
-          '.txt': 'text/plain',
-          '.md': 'text/markdown',
-          '.csv': 'text/csv',
-          '.json': 'application/json',
-          '.xml': 'application/xml',
-          '.yaml': 'application/yaml',
-          '.yml': 'application/yaml',
-          '.html': 'text/html',
-          '.htm': 'text/html',
-          '.css': 'text/css',
-          '.js': 'application/javascript',
-          '.jsx': 'application/javascript',
-          '.ts': 'application/typescript',
-          '.tsx': 'application/typescript',
-          '.py': 'text/x-python',
-          '.java': 'text/x-java-source',
-          '.c': 'text/x-c',
-          '.cpp': 'text/x-c++',
-          '.h': 'text/x-c',
-          '.hpp': 'text/x-c++',
-          '.cs': 'text/x-csharp',
-          '.go': 'text/x-go',
-          '.rs': 'text/x-rust',
-          '.php': 'text/x-php',
-          '.rb': 'text/x-ruby',
-          '.sh': 'text/x-shell',
-          '.bash': 'text/x-shell',
-          '.sql': 'text/x-sql',
-          '.rtf': 'application/rtf'
-        };
-        mimeType = mimeTypes[ext] || 'text/plain';
-      }
-
-      console.log(`Uploading file: ${file.originalname}, Size: ${fileStats.size} bytes, MIME: ${mimeType}`);
+      console.log(`Uploading file: ${file.originalname}`);
       console.log(`File path: ${file.path}`);
-
-      let uploadResult;
+      console.log(`File size: ${file.size} bytes`);
       
-      try {
-        // Method 1: Try uploading with file path
-        uploadResult = await ai.files.upload({
-          path: file.path,
-          displayName: file.originalname,
-          mimeType: mimeType
-        });
-      } catch (pathError) {
-        console.log('Path-based upload failed, trying buffer method:', pathError.message);
-        
-        // Method 2: Try uploading with file buffer
-        const fileBuffer = fs.readFileSync(file.path);
-        const tempFileName = `temp_${Date.now()}_${file.originalname}`;
-        const tempPath = path.join(process.cwd(), 'uploads', tempFileName);
-        
-        // Write buffer to a new temp file with a clean name
-        fs.writeFileSync(tempPath, fileBuffer);
-        
-        try {
-          uploadResult = await ai.files.upload({
-            path: tempPath,
-            displayName: file.originalname,
-            mimeType: mimeType
-          });
-          
-          // Clean up the temp file
-          fs.unlinkSync(tempPath);
-        } catch (bufferError) {
-          // Clean up the temp file on error
-          if (fs.existsSync(tempPath)) {
-            fs.unlinkSync(tempPath);
+      // Determine MIME type based on file extension
+      const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain',
+        '.md': 'text/markdown',
+        '.csv': 'text/csv',
+        '.json': 'application/json',
+        '.xml': 'application/xml',
+        '.yaml': 'application/yaml',
+        '.yml': 'application/yaml',
+        '.html': 'text/html',
+        '.htm': 'text/html',
+        '.css': 'text/css',
+        '.js': 'application/javascript',
+        '.jsx': 'application/javascript',
+        '.ts': 'application/typescript',
+        '.tsx': 'application/typescript',
+        '.py': 'text/x-python',
+        '.java': 'text/x-java-source',
+        '.c': 'text/x-c',
+        '.cpp': 'text/x-c++',
+        '.h': 'text/x-c',
+        '.hpp': 'text/x-c++',
+        '.cs': 'text/x-csharp',
+        '.go': 'text/x-go',
+        '.rs': 'text/x-rust',
+        '.php': 'text/x-php',
+        '.rb': 'text/x-ruby',
+        '.sh': 'text/x-shell',
+        '.bash': 'text/x-shell',
+        '.sql': 'text/x-sql',
+        '.rtf': 'application/rtf'
+      };
+      
+      const mimeType = mimeTypes[fileExtension] || 'text/plain';
+      const fileStats = fs.statSync(file.path);
+      const fileBuffer = fs.readFileSync(file.path);
+      
+      console.log(`Determined MIME type: ${mimeType}`);
+      console.log(`File stats size: ${fileStats.size}`);
+      
+      // Upload using REST API directly
+      const uploadUrl = 'https://generativelanguage.googleapis.com/upload/v1beta/files';
+      
+      // Step 1: Start resumable upload
+      const startResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'X-Goog-API-Key': process.env.GEMINI_API_KEY,
+          'X-Goog-Upload-Protocol': 'resumable',
+          'X-Goog-Upload-Command': 'start',
+          'X-Goog-Upload-Header-Content-Length': fileStats.size.toString(),
+          'X-Goog-Upload-Header-Content-Type': mimeType,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          file: {
+            display_name: file.originalname
           }
-          throw bufferError;
-        }
+        })
+      });
+      
+      if (!startResponse.ok) {
+        const errorText = await startResponse.text();
+        console.error('Start upload error:', errorText);
+        throw new Error(`Failed to start upload: ${startResponse.status} - ${errorText}`);
       }
-
+      
+      const uploadSessionUrl = startResponse.headers.get('X-Goog-Upload-URL');
+      if (!uploadSessionUrl) {
+        throw new Error('No upload URL received from Google');
+      }
+      
+      console.log('Upload session started, uploading file data...');
+      
+      // Step 2: Upload the actual file data
+      const uploadResponse = await fetch(uploadSessionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Length': fileStats.size.toString(),
+          'X-Goog-Upload-Offset': '0',
+          'X-Goog-Upload-Command': 'upload, finalize'
+        },
+        body: fileBuffer
+      });
+      
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error('Upload error:', errorText);
+        throw new Error(`Failed to upload file: ${uploadResponse.status} - ${errorText}`);
+      }
+      
+      const uploadResult = await uploadResponse.json();
       console.log('Upload successful:', uploadResult.file.name);
-
+      
       // Clean up local file
       fs.unlinkSync(file.path);
-
+      
       res.json({
         success: true,
         file: {
           name: uploadResult.file.name,
-          displayName: uploadResult.file.displayName,
-          mimeType: uploadResult.file.mimeType,
-          sizeBytes: uploadResult.file.sizeBytes,
+          displayName: uploadResult.file.display_name,
+          mimeType: uploadResult.file.mime_type,
+          sizeBytes: uploadResult.file.size_bytes,
           uri: uploadResult.file.uri
         }
       });
+      
     } catch (uploadError) {
       // Clean up local file on error
       if (fs.existsSync(file.path)) {
         fs.unlinkSync(file.path);
       }
       console.error('File upload error:', uploadError);
-      console.error('File details:', {
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        path: file.path
-      });
       res.status(500).json({ 
-        error: `Failed to upload file to Google AI: ${uploadError.message}` 
+        error: `Failed to upload file: ${uploadError.message}` 
       });
     }
 
   } catch (error) {
     console.error('Upload error:', error);
-    // Clean up file if it exists
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
@@ -209,21 +197,46 @@ app.post('/api/upload', upload.single('document'), async (req, res) => {
   }
 });
 
-// Get uploaded files list
+// Get uploaded files list using REST API
 app.get('/api/files', async (req, res) => {
   try {
-    const filesResponse = await ai.files.list();
-    res.json({ files: filesResponse.files || [] });
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/files', {
+      method: 'GET',
+      headers: {
+        'X-Goog-API-Key': process.env.GEMINI_API_KEY
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('List files error:', errorText);
+      throw new Error(`Failed to list files: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    res.json({ files: result.files || [] });
   } catch (error) {
     console.error('Error fetching files:', error);
     res.status(500).json({ error: 'Failed to fetch files' });
   }
 });
 
-// Delete uploaded file
+// Delete uploaded file using REST API
 app.delete('/api/files/:fileName', async (req, res) => {
   try {
-    await ai.files.delete(req.params.fileName);
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/files/${encodeURIComponent(req.params.fileName)}`, {
+      method: 'DELETE',
+      headers: {
+        'X-Goog-API-Key': process.env.GEMINI_API_KEY
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Delete file error:', errorText);
+      throw new Error(`Failed to delete file: ${response.status}`);
+    }
+    
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting file:', error);
@@ -285,7 +298,6 @@ app.post('/api/chat', async (req, res) => {
       for (const fileUri of uploadedFiles) {
         parts.push({
           fileData: {
-            mimeType: 'application/pdf', // This will be set correctly by the API based on the uploaded file
             fileUri: fileUri
           }
         });
