@@ -65,7 +65,7 @@
             font-size: 14px;
         }
         
-        #mediaInput {
+        #mediaInput, #documentInput {
             margin: 10px 0;
         }
         
@@ -96,6 +96,108 @@
             border-radius: 4px;
             font-size: 14px;
             display: none;
+        }
+        
+        .upload-section {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        
+        .upload-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .upload-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .upload-progress {
+            display: none;
+            margin: 10px 0;
+            padding: 8px;
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #1976d2;
+        }
+        
+        #uploadedDocuments {
+            margin: 10px 0;
+        }
+        
+        .document-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .document-item.selected {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        
+        .document-info {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .document-info input[type="checkbox"] {
+            margin: 0;
+        }
+        
+        .document-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .btn-small {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            color: white;
+        }
+        
+        .btn-delete {
+            background: #dc3545;
+        }
+        
+        .btn-delete:hover {
+            background: #c82333;
+        }
+        
+        .file-extension {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #6c757d;
+            color: white;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .file-size {
+            color: #6c757d;
+            font-size: 12px;
         }
         
         #response {
@@ -564,14 +666,31 @@
             <button id="settingsButton" onclick="openSettingsModal()" style="padding: 8px 12px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">⚙️ Settings</button>
         </div>
         
-        <div>
-            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" onchange="previewMedia()" />
-            <button id="clearMedia" onclick="clearMedia()">Clear Media</button>
+        <!-- Media Upload Section -->
+        <div class="upload-section">
+            <h3>📁 Media Upload</h3>
+            <div class="upload-row">
+                <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" onchange="previewMedia()" />
+                <button id="clearMedia" onclick="clearMedia()">Clear Media</button>
+            </div>
+            <div id="mediaInfo"></div>
+            <img id="mediaPreview" alt="Media preview" />
+            <video id="videoPreview" controls style="display: none; max-width: 300px;"></video>
+            <audio id="audioPreview" controls style="display: none; max-width: 300px;"></audio>
         </div>
-        <div id="mediaInfo"></div>
-        <img id="mediaPreview" alt="Media preview" />
-        <video id="videoPreview" controls style="display: none; max-width: 300px;"></video>
-        <audio id="audioPreview" controls style="display: none; max-width: 300px;"></audio>
+        
+        <!-- Document Upload Section -->
+        <div class="upload-section">
+            <h3>📄 Document Upload</h3>
+            <div class="upload-row">
+                <input type="file" id="documentInput" 
+                       accept=".pdf,.txt,.md,.csv,.json,.xml,.yaml,.yml,.html,.htm,.css,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.hpp,.cs,.go,.rs,.php,.rb,.sh,.bash,.sql,.rtf" 
+                       onchange="uploadDocument()" />
+                <button id="refreshDocuments" onclick="loadUploadedDocuments()" style="padding: 8px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">🔄 Refresh</button>
+            </div>
+            <div id="uploadProgress" class="upload-progress"></div>
+            <div id="uploadedDocuments"></div>
+        </div>
         <button id="sendButton" onclick="sendMessage()">Send</button>
     </div>
     
@@ -703,9 +822,143 @@
     <script>
         let accumulatedText = '';
         let selectedMedia = null;
+        let uploadedDocuments = [];
+        let selectedDocuments = [];
         
         let footnoteCounter = 0;
         let footnotes = [];
+        
+        // Document upload functions
+        async function uploadDocument() {
+            const input = document.getElementById('documentInput');
+            const progressDiv = document.getElementById('uploadProgress');
+            
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('document', file);
+            
+            try {
+                progressDiv.style.display = 'block';
+                progressDiv.textContent = `Uploading ${file.name}...`;
+                
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    progressDiv.textContent = `✅ Successfully uploaded ${file.name}`;
+                    input.value = ''; // Clear the input
+                    loadUploadedDocuments(); // Refresh the list
+                } else {
+                    throw new Error(result.error || 'Upload failed');
+                }
+            } catch (error) {
+                progressDiv.textContent = `❌ Upload failed: ${error.message}`;
+                progressDiv.style.background = '#ffebee';
+                progressDiv.style.borderColor = '#f44336';
+                progressDiv.style.color = '#c62828';
+            }
+            
+            setTimeout(() => {
+                progressDiv.style.display = 'none';
+                progressDiv.style.background = '#e3f2fd';
+                progressDiv.style.borderColor = '#2196f3';
+                progressDiv.style.color = '#1976d2';
+            }, 3000);
+        }
+        
+        async function loadUploadedDocuments() {
+            try {
+                const response = await fetch('/api/files');
+                const result = await response.json();
+                
+                uploadedDocuments = result.files || [];
+                displayUploadedDocuments();
+            } catch (error) {
+                console.error('Failed to load documents:', error);
+            }
+        }
+        
+        function displayUploadedDocuments() {
+            const container = document.getElementById('uploadedDocuments');
+            
+            if (uploadedDocuments.length === 0) {
+                container.innerHTML = '<p style="color: #666; font-style: italic; margin: 10px 0;">No documents uploaded yet.</p>';
+                return;
+            }
+            
+            container.innerHTML = uploadedDocuments.map(doc => {
+                const isSelected = selectedDocuments.includes(doc.uri);
+                const fileExtension = doc.displayName.split('.').pop().toUpperCase();
+                const fileSizeKB = Math.round(doc.sizeBytes / 1024);
+                const fileSizeMB = (doc.sizeBytes / (1024 * 1024)).toFixed(1);
+                const displaySize = fileSizeKB < 1024 ? `${fileSizeKB} KB` : `${fileSizeMB} MB`;
+                
+                return `
+                    <div class="document-item ${isSelected ? 'selected' : ''}">
+                        <div class="document-info">
+                            <input type="checkbox" 
+                                   ${isSelected ? 'checked' : ''} 
+                                   onchange="toggleDocumentSelection('${doc.uri}')">
+                            <span class="file-extension">${fileExtension}</span>
+                            <span>${doc.displayName}</span>
+                            <span class="file-size">(${displaySize})</span>
+                        </div>
+                        <div class="document-actions">
+                            <button class="btn-small btn-delete" onclick="deleteDocument('${doc.name}', '${doc.displayName}')">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function toggleDocumentSelection(uri) {
+            const index = selectedDocuments.indexOf(uri);
+            if (index === -1) {
+                selectedDocuments.push(uri);
+            } else {
+                selectedDocuments.splice(index, 1);
+            }
+            displayUploadedDocuments();
+        }
+        
+        async function deleteDocument(fileName, displayName) {
+            if (!confirm(`Are you sure you want to delete "${displayName}"?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/files/${encodeURIComponent(fileName)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Remove from selected documents if it was selected
+                    const doc = uploadedDocuments.find(d => d.name === fileName);
+                    if (doc) {
+                        const index = selectedDocuments.indexOf(doc.uri);
+                        if (index !== -1) {
+                            selectedDocuments.splice(index, 1);
+                        }
+                    }
+                    
+                    loadUploadedDocuments();
+                } else {
+                    alert('Failed to delete document');
+                }
+            } catch (error) {
+                alert('Error deleting document: ' + error.message);
+            }
+        }
         
         // Enhanced configuration state
         const modelRanges = {
@@ -843,6 +1096,8 @@
         
         // Event listeners for configuration controls
         document.addEventListener('DOMContentLoaded', function() {
+            // Load uploaded documents on page load
+            loadUploadedDocuments();
             const modelSelect = document.getElementById('modelSelect');
             
             // Model change handler
@@ -1093,7 +1348,8 @@
                 const requestBody = { 
                     message: message || '',
                     model: document.getElementById('modelSelect').value,
-                    config: config
+                    config: config,
+                    uploadedFiles: selectedDocuments.length > 0 ? selectedDocuments : undefined
                 };
                 
                 // If there's media, convert it to base64
@@ -1156,6 +1412,9 @@
                 if (selectedMedia) {
                     clearMedia();
                 }
+                // Clear selected documents after sending
+                selectedDocuments = [];
+                displayUploadedDocuments();
             }
         }
         

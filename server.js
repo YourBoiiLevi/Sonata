@@ -3,6 +3,9 @@ import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer';
+import fs from 'fs';
+import { promisify } from 'util';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,19 +25,131 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(__dirname));
 
+// Configure multer for file uploads
+const upload = multer({ dest: 'uploads/' });
+
+// Ensure uploads directory exists
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads');
+}
+
 // Serve the HTML file
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// File upload endpoint
+app.post('/api/upload', upload.single('document'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const file = req.file;
+    const supportedTypes = [
+      // Text formats
+      'text/plain', 'text/markdown', 'text/csv',
+      // Document formats
+      'application/pdf',
+      // Code formats
+      'text/html', 'text/css', 'text/javascript', 'application/javascript',
+      'text/x-python', 'application/x-python-code', 'text/x-java-source',
+      'text/x-c', 'text/x-c++', 'text/x-csharp', 'text/x-go', 'text/x-rust',
+      'text/x-php', 'text/x-ruby', 'text/x-shell', 'application/json',
+      'application/xml', 'text/xml', 'application/yaml', 'text/yaml',
+      // Additional formats
+      'application/rtf', 'text/rtf'
+    ];
+
+    // Check file extension for additional validation
+    const allowedExtensions = [
+      '.pdf', '.txt', '.md', '.csv', '.json', '.xml', '.yaml', '.yml',
+      '.html', '.htm', '.css', '.js', '.jsx', '.ts', '.tsx',
+      '.py', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs',
+      '.php', '.rb', '.sh', '.bash', '.sql', '.rtf'
+    ];
+
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    const isValidExtension = allowedExtensions.includes(fileExtension);
+    const isValidMimeType = supportedTypes.includes(file.mimetype) || 
+                           file.mimetype.startsWith('text/') ||
+                           file.mimetype === 'application/octet-stream'; // For files without proper MIME type
+
+    if (!isValidExtension && !isValidMimeType) {
+      // Clean up uploaded file
+      fs.unlinkSync(file.path);
+      return res.status(400).json({ 
+        error: `Unsupported file type. Supported formats: PDF, text files, code files, and data files.` 
+      });
+    }
+
+    try {
+      // Upload file to Google AI Files API
+      const uploadResult = await ai.files.upload({
+        path: file.path,
+        displayName: file.originalname,
+      });
+
+      // Clean up local file
+      fs.unlinkSync(file.path);
+
+      res.json({
+        success: true,
+        file: {
+          name: uploadResult.file.name,
+          displayName: uploadResult.file.displayName,
+          mimeType: uploadResult.file.mimeType,
+          sizeBytes: uploadResult.file.sizeBytes,
+          uri: uploadResult.file.uri
+        }
+      });
+    } catch (uploadError) {
+      // Clean up local file on error
+      fs.unlinkSync(file.path);
+      console.error('File upload error:', uploadError);
+      res.status(500).json({ error: 'Failed to upload file to Google AI' });
+    }
+
+  } catch (error) {
+    console.error('Upload error:', error);
+    // Clean up file if it exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'File upload failed' });
+  }
+});
+
+// Get uploaded files list
+app.get('/api/files', async (req, res) => {
+  try {
+    const filesResponse = await ai.files.list();
+    res.json({ files: filesResponse.files || [] });
+  } catch (error) {
+    console.error('Error fetching files:', error);
+    res.status(500).json({ error: 'Failed to fetch files' });
+  }
+});
+
+// Delete uploaded file
+app.delete('/api/files/:fileName', async (req, res) => {
+  try {
+    await ai.files.delete(req.params.fileName);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
 // API endpoint for chat
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, media, model, config } = req.body;
+    const { message, media, uploadedFiles, model, config } = req.body;
     const selectedModel = model || 'gemini-2.5-flash';
     
-    if (!message && !media) {
-      return res.status(400).json({ error: 'Message or media is required' });
+    if (!message && !media && (!uploadedFiles || uploadedFiles.length === 0)) {
+      return res.status(400).json({ error: 'Message, media, or uploaded files are required' });
     }
     
     // Set headers for streaming response
@@ -74,6 +189,18 @@ app.post('/api/chat', async (req, res) => {
           data: media.data
         }
       });
+    }
+    
+    // Add uploaded files if they exist
+    if (uploadedFiles && uploadedFiles.length > 0) {
+      for (const fileUri of uploadedFiles) {
+        parts.push({
+          fileData: {
+            mimeType: 'application/pdf', // This will be set correctly by the API based on the uploaded file
+            fileUri: fileUri
+          }
+        });
+      }
     }
     
     // Generate streaming response from Gemini
