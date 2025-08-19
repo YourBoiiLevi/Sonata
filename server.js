@@ -136,15 +136,6 @@ Example:
 - Create footnotes with [^1] in text and [^1]: Definition at the end
 - Multiple footnotes are automatically numbered and linked
 
-## Diagrams (Advanced)
-- You can create flowcharts, diagrams, and graphs using Mermaid syntax:
-  \`\`\`mermaid
-  graph TD
-      A[Start] --> B{Decision}
-      B -->|Yes| C[Action]
-      B -->|No| D[End]
-  \`\`\`
-
 ## Best Practices
 - Use appropriate formatting to enhance readability
 - Employ callouts for important information

@@ -17,8 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     
-    <!-- Mermaid diagrams -->
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -321,11 +320,7 @@
             font-size: 1.1em;
         }
         
-        /* Mermaid diagrams */
-        .mermaid {
-            text-align: center;
-            margin: 16px 0;
-        }
+
         
         /* Enhanced code blocks */
         #response pre {
@@ -413,11 +408,25 @@
                     </div>`;
             });
             
-            // Handle callout content continuation
-            text = text.replace(/^>(?!\s*\[!)\s*(.+)$/gm, (match, content) => {
-                // Check if this is part of a callout (look for previous callout block)
-                return content + '\n</div>';
-            });
+            // Handle callout content continuation (only for lines that follow callouts)
+            let inCallout = false;
+            text = text.split('\n').map(line => {
+                if (line.match(/^>\s*\[!(NOTE|TIP|WARNING|DANGER|INFO)\]/)) {
+                    inCallout = true;
+                    return line;
+                } else if (line.match(/^>(?!\s*\[!)/)) {
+                    if (inCallout) {
+                        return line.replace(/^>\s*(.+)/, '$1') + '\n</div>';
+                    } else {
+                        return line; // Leave regular blockquotes alone
+                    }
+                } else if (line.trim() === '') {
+                    return line;
+                } else {
+                    inCallout = false;
+                    return line;
+                }
+            }).join('\n');
             
             // 7. Handle collapsible sections <details>Title</details>
             text = text.replace(/<details>([^<]+)<\/details>/g, '<details><summary>$1</summary><div class="content">');
@@ -467,12 +476,7 @@
             }
         }
         
-        // Function to render Mermaid diagrams
-        function renderMermaid() {
-            if (window.mermaid) {
-                mermaid.run();
-            }
-        }
+
         
         // Function to highlight code
         function highlightCode(element) {
@@ -601,7 +605,6 @@
                     // Apply post-processing
                     highlightCode(responseDiv);
                     renderMath(responseDiv);
-                    renderMermaid();
                 }
                 
             } catch (error) {
