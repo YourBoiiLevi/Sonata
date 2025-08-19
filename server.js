@@ -84,11 +84,90 @@ app.post('/api/upload', upload.single('document'), async (req, res) => {
     }
 
     try {
-      // Upload file to Google AI Files API
-      const uploadResult = await ai.files.upload({
-        path: file.path,
-        displayName: file.originalname,
-      });
+      // Check if file exists and get its stats
+      const fileStats = fs.statSync(file.path);
+      
+      // Determine MIME type based on file extension if not provided
+      let mimeType = file.mimetype;
+      if (!mimeType || mimeType === 'application/octet-stream') {
+        const ext = path.extname(file.originalname).toLowerCase();
+        const mimeTypes = {
+          '.pdf': 'application/pdf',
+          '.txt': 'text/plain',
+          '.md': 'text/markdown',
+          '.csv': 'text/csv',
+          '.json': 'application/json',
+          '.xml': 'application/xml',
+          '.yaml': 'application/yaml',
+          '.yml': 'application/yaml',
+          '.html': 'text/html',
+          '.htm': 'text/html',
+          '.css': 'text/css',
+          '.js': 'application/javascript',
+          '.jsx': 'application/javascript',
+          '.ts': 'application/typescript',
+          '.tsx': 'application/typescript',
+          '.py': 'text/x-python',
+          '.java': 'text/x-java-source',
+          '.c': 'text/x-c',
+          '.cpp': 'text/x-c++',
+          '.h': 'text/x-c',
+          '.hpp': 'text/x-c++',
+          '.cs': 'text/x-csharp',
+          '.go': 'text/x-go',
+          '.rs': 'text/x-rust',
+          '.php': 'text/x-php',
+          '.rb': 'text/x-ruby',
+          '.sh': 'text/x-shell',
+          '.bash': 'text/x-shell',
+          '.sql': 'text/x-sql',
+          '.rtf': 'application/rtf'
+        };
+        mimeType = mimeTypes[ext] || 'text/plain';
+      }
+
+      console.log(`Uploading file: ${file.originalname}, Size: ${fileStats.size} bytes, MIME: ${mimeType}`);
+      console.log(`File path: ${file.path}`);
+
+      let uploadResult;
+      
+      try {
+        // Method 1: Try uploading with file path
+        uploadResult = await ai.files.upload({
+          path: file.path,
+          displayName: file.originalname,
+          mimeType: mimeType
+        });
+      } catch (pathError) {
+        console.log('Path-based upload failed, trying buffer method:', pathError.message);
+        
+        // Method 2: Try uploading with file buffer
+        const fileBuffer = fs.readFileSync(file.path);
+        const tempFileName = `temp_${Date.now()}_${file.originalname}`;
+        const tempPath = path.join(process.cwd(), 'uploads', tempFileName);
+        
+        // Write buffer to a new temp file with a clean name
+        fs.writeFileSync(tempPath, fileBuffer);
+        
+        try {
+          uploadResult = await ai.files.upload({
+            path: tempPath,
+            displayName: file.originalname,
+            mimeType: mimeType
+          });
+          
+          // Clean up the temp file
+          fs.unlinkSync(tempPath);
+        } catch (bufferError) {
+          // Clean up the temp file on error
+          if (fs.existsSync(tempPath)) {
+            fs.unlinkSync(tempPath);
+          }
+          throw bufferError;
+        }
+      }
+
+      console.log('Upload successful:', uploadResult.file.name);
 
       // Clean up local file
       fs.unlinkSync(file.path);
@@ -105,9 +184,19 @@ app.post('/api/upload', upload.single('document'), async (req, res) => {
       });
     } catch (uploadError) {
       // Clean up local file on error
-      fs.unlinkSync(file.path);
+      if (fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
       console.error('File upload error:', uploadError);
-      res.status(500).json({ error: 'Failed to upload file to Google AI' });
+      console.error('File details:', {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        path: file.path
+      });
+      res.status(500).json({ 
+        error: `Failed to upload file to Google AI: ${uploadError.message}` 
+      });
     }
 
   } catch (error) {
