@@ -367,6 +367,45 @@
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro - Enhanced thinking and reasoning, multimodal understanding, advanced coding</option>
             </select>
         </div>
+        
+        <!-- Configuration Section -->
+        <div id="configSection">
+            <div>
+                <label for="reasoningSlider">Reasoning:</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="range" id="reasoningSlider" min="-1" max="32768" value="-1" style="flex: 1;">
+                    <span id="reasoningValue">Dynamic</span>
+                </div>
+                <div style="font-size: 12px; color: #666; margin-top: 2px;" id="reasoningHelp">
+                    Dynamic reasoning adjusts based on task complexity
+                </div>
+            </div>
+            
+            <details style="margin: 10px 0;">
+                <summary style="cursor: pointer; font-weight: bold; padding: 8px 0;">Advanced Configuration</summary>
+                <div style="padding: 10px 0;">
+                    <div style="margin-bottom: 10px;">
+                        <label for="temperatureSlider">Temperature:</label>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="range" id="temperatureSlider" min="0" max="2" step="0.1" value="1.0" style="flex: 1;">
+                            <span id="temperatureValue">1.0</span>
+                        </div>
+                        <div style="font-size: 12px; color: #666;">Controls randomness (0.0 = deterministic, 2.0 = very random)</div>
+                    </div>
+                    
+                    <div>
+                        <label for="mediaResolution">Media Resolution:</label>
+                        <select id="mediaResolution" style="width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px;">
+                            <option value="">Default</option>
+                            <option value="MEDIA_RESOLUTION_LOW">Low (64 tokens)</option>
+                            <option value="MEDIA_RESOLUTION_MEDIUM">Medium (256 tokens)</option>
+                            <option value="MEDIA_RESOLUTION_HIGH">High (256 tokens, zoomed)</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
+        </div>
+        
         <div>
             <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" onchange="previewMedia()" />
             <button id="clearMedia" onclick="clearMedia()">Clear Media</button>
@@ -386,6 +425,73 @@
         
         let footnoteCounter = 0;
         let footnotes = [];
+        
+        // Configuration state
+        const modelRanges = {
+            'gemini-2.5-pro': { min: 128, max: 32768, default: -1, canDisable: false },
+            'gemini-2.5-flash': { min: 0, max: 24576, default: -1, canDisable: true },
+            'gemini-2.5-flash-lite': { min: 512, max: 24576, default: 0, canDisable: true }
+        };
+        
+        // Update reasoning slider based on selected model
+        function updateReasoningSlider() {
+            const modelSelect = document.getElementById('modelSelect');
+            const reasoningSlider = document.getElementById('reasoningSlider');
+            const reasoningValue = document.getElementById('reasoningValue');
+            const reasoningHelp = document.getElementById('reasoningHelp');
+            
+            const selectedModel = modelSelect.value;
+            const range = modelRanges[selectedModel];
+            
+            if (range) {
+                reasoningSlider.min = range.min;
+                reasoningSlider.max = range.max;
+                reasoningSlider.value = range.default;
+                
+                updateReasoningDisplay();
+                
+                if (range.canDisable) {
+                    reasoningHelp.textContent = `Range: ${range.min}-${range.max} tokens. 0=disabled, -1=dynamic`;
+                } else {
+                    reasoningHelp.textContent = `Range: ${range.min}-${range.max} tokens. -1=dynamic (cannot disable)`;
+                }
+            }
+        }
+        
+        function updateReasoningDisplay() {
+            const reasoningSlider = document.getElementById('reasoningSlider');
+            const reasoningValue = document.getElementById('reasoningValue');
+            
+            const value = parseInt(reasoningSlider.value);
+            if (value === -1) {
+                reasoningValue.textContent = 'Dynamic';
+            } else if (value === 0) {
+                reasoningValue.textContent = 'Disabled';
+            } else {
+                reasoningValue.textContent = value.toString();
+            }
+        }
+        
+        function updateTemperatureDisplay() {
+            const temperatureSlider = document.getElementById('temperatureSlider');
+            const temperatureValue = document.getElementById('temperatureValue');
+            temperatureValue.textContent = parseFloat(temperatureSlider.value).toFixed(1);
+        }
+        
+        // Event listeners for configuration controls
+        document.addEventListener('DOMContentLoaded', function() {
+            const modelSelect = document.getElementById('modelSelect');
+            const reasoningSlider = document.getElementById('reasoningSlider');
+            const temperatureSlider = document.getElementById('temperatureSlider');
+            
+            modelSelect.addEventListener('change', updateReasoningSlider);
+            reasoningSlider.addEventListener('input', updateReasoningDisplay);
+            temperatureSlider.addEventListener('input', updateTemperatureDisplay);
+            
+            // Initialize
+            updateReasoningSlider();
+            updateTemperatureDisplay();
+        });
         
         // Enhanced function to handle all custom markdown syntax
         function parseCustomMarkdown(text) {
@@ -580,7 +686,12 @@
                 // Prepare the request body
                 const requestBody = { 
                     message: message || '',
-                    model: document.getElementById('modelSelect').value
+                    model: document.getElementById('modelSelect').value,
+                    config: {
+                        thinkingBudget: parseInt(document.getElementById('reasoningSlider').value),
+                        temperature: parseFloat(document.getElementById('temperatureSlider').value),
+                        mediaResolution: document.getElementById('mediaResolution').value || undefined
+                    }
                 };
                 
                 // If there's media, convert it to base64
