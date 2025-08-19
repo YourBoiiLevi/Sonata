@@ -4,7 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gemini API Chat</title>
+    <!-- Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.2/marked.min.js"></script>
+    
+    <!-- Code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    
+    <!-- LaTeX rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -146,6 +159,184 @@
             color: #666;
             font-style: italic;
         }
+        
+        /* Callout/Alert blocks */
+        .callout {
+            padding: 12px 16px;
+            margin: 16px 0;
+            border-left: 4px solid;
+            border-radius: 0 4px 4px 0;
+            background: rgba(0, 0, 0, 0.05);
+        }
+        
+        .callout-note {
+            border-left-color: #007bff;
+            background: rgba(0, 123, 255, 0.1);
+        }
+        
+        .callout-tip {
+            border-left-color: #28a745;
+            background: rgba(40, 167, 69, 0.1);
+        }
+        
+        .callout-warning {
+            border-left-color: #ffc107;
+            background: rgba(255, 193, 7, 0.1);
+        }
+        
+        .callout-danger {
+            border-left-color: #dc3545;
+            background: rgba(220, 53, 69, 0.1);
+        }
+        
+        .callout-info {
+            border-left-color: #17a2b8;
+            background: rgba(23, 162, 184, 0.1);
+        }
+        
+        .callout-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .callout-icon {
+            margin-right: 8px;
+            font-size: 1.1em;
+        }
+        
+        /* Collapsible sections */
+        details {
+            margin: 16px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        summary {
+            padding: 12px 16px;
+            background: #f8f9fa;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 4px 4px 0 0;
+            user-select: none;
+        }
+        
+        summary:hover {
+            background: #e9ecef;
+        }
+        
+        details[open] summary {
+            border-bottom: 1px solid #ddd;
+            border-radius: 4px 4px 0 0;
+        }
+        
+        details .content {
+            padding: 16px;
+        }
+        
+        /* Task lists */
+        .task-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .task-list-item {
+            display: flex;
+            align-items: flex-start;
+            margin: 4px 0;
+        }
+        
+        .task-list-item input {
+            margin-right: 8px;
+            margin-top: 4px;
+        }
+        
+        .task-list-item.checked {
+            text-decoration: line-through;
+            color: #666;
+        }
+        
+        /* Footnotes */
+        .footnotes {
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid #ddd;
+            font-size: 0.9em;
+        }
+        
+        .footnote-ref {
+            color: #007bff;
+            text-decoration: none;
+            font-size: 0.8em;
+            vertical-align: super;
+        }
+        
+        .footnote-ref:hover {
+            text-decoration: underline;
+        }
+        
+        .footnote-item {
+            margin: 8px 0;
+        }
+        
+        .footnote-back {
+            color: #007bff;
+            text-decoration: none;
+            margin-left: 4px;
+        }
+        
+        /* Spoiler tags */
+        .spoiler {
+            background: #000;
+            color: #000;
+            border-radius: 3px;
+            padding: 2px 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .spoiler:hover, .spoiler.revealed {
+            background: #f4f4f4;
+            color: inherit;
+        }
+        
+        /* Keyboard shortcuts */
+        .kbd {
+            display: inline-block;
+            padding: 3px 6px;
+            font-size: 0.85em;
+            line-height: 1;
+            background: #fafbfc;
+            border: 1px solid #d0d7de;
+            border-bottom-color: #afb8c1;
+            border-radius: 6px;
+            box-shadow: inset 0 -1px 0 #afb8c1;
+            font-family: monospace;
+        }
+        
+        /* LaTeX math styling */
+        .katex {
+            font-size: 1.1em;
+        }
+        
+
+        
+        /* Enhanced code blocks */
+        #response pre {
+            position: relative;
+        }
+        
+        #response pre .code-header {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -170,13 +361,128 @@
         let accumulatedText = '';
         let selectedMedia = null;
         
-        // Custom function to handle ==highlight== syntax
+        let footnoteCounter = 0;
+        let footnotes = [];
+        
+        // Enhanced function to handle all custom markdown syntax
         function parseCustomMarkdown(text) {
-            // First convert ==text== to <mark>text</mark>
+            // Reset footnotes for each parse
+            footnoteCounter = 0;
+            footnotes = [];
+            
+            // 1. Handle spoiler tags ||text||
+            text = text.replace(/\|\|(.*?)\|\|/g, '<span class="spoiler" onclick="this.classList.add(\'revealed\');">$1</span>');
+            
+            // 2. Handle keyboard shortcuts [[key]]
+            text = text.replace(/\[\[(.*?)\]\]/g, '<kbd class="kbd">$1</kbd>');
+            
+            // 3. Handle highlight syntax ==text==
             text = text.replace(/==(.*?)==/g, '<mark>$1</mark>');
             
-            // Then parse with marked.js
-            return marked.parse(text);
+            // 4. Handle footnotes [^1]
+            text = text.replace(/\[\^(\w+)\](?!:)/g, (match, id) => {
+                footnoteCounter++;
+                return `<a href="#fn${footnoteCounter}" class="footnote-ref" id="fnref${footnoteCounter}">${footnoteCounter}</a>`;
+            });
+            
+            // 5. Handle footnote definitions [^1]: content
+            text = text.replace(/\[\^(\w+)\]:\s*(.+)/g, (match, id, content) => {
+                footnotes.push({ id, content });
+                return ''; // Remove from main content
+            });
+            
+            // 6. Handle callout blocks
+            text = text.replace(/^>\s*\[!(NOTE|TIP|WARNING|DANGER|INFO)\]\s*(.*)$/gm, (match, type, title) => {
+                const typeClass = type.toLowerCase();
+                const icons = {
+                    'note': 'ℹ️',
+                    'tip': '💡',
+                    'warning': '⚠️',
+                    'danger': '🚨',
+                    'info': 'ℹ️'
+                };
+                return `<div class="callout callout-${typeClass}">
+                    <div class="callout-title">
+                        <span class="callout-icon">${icons[typeClass] || 'ℹ️'}</span>
+                        ${title || type}
+                    </div>`;
+            });
+            
+            // Handle callout content continuation (only for lines that follow callouts)
+            let inCallout = false;
+            text = text.split('\n').map(line => {
+                if (line.match(/^>\s*\[!(NOTE|TIP|WARNING|DANGER|INFO)\]/)) {
+                    inCallout = true;
+                    return line;
+                } else if (line.match(/^>(?!\s*\[!)/)) {
+                    if (inCallout) {
+                        return line.replace(/^>\s*(.+)/, '$1') + '\n</div>';
+                    } else {
+                        return line; // Leave regular blockquotes alone
+                    }
+                } else if (line.trim() === '') {
+                    return line;
+                } else {
+                    inCallout = false;
+                    return line;
+                }
+            }).join('\n');
+            
+            // 7. Handle collapsible sections <details>Title</details>
+            text = text.replace(/<details>([^<]+)<\/details>/g, '<details><summary>$1</summary><div class="content">');
+            text = text.replace(/<\/details>/g, '</div></details>');
+            
+            // 8. Parse with marked.js
+            let html = marked.parse(text);
+            
+            // 9. Post-process for task lists
+            html = html.replace(/<ul>/g, '<ul class="task-list">');
+            html = html.replace(/<li>\s*\[([x ])\]\s*(.*?)<\/li>/gi, (match, checked, content) => {
+                const isChecked = checked.toLowerCase() === 'x';
+                const checkedClass = isChecked ? ' checked' : '';
+                const checkedAttr = isChecked ? ' checked disabled' : '';
+                return `<li class="task-list-item${checkedClass}">
+                    <input type="checkbox"${checkedAttr}>
+                    <span>${content}</span>
+                </li>`;
+            });
+            
+            // 10. Add footnotes section if any exist
+            if (footnotes.length > 0) {
+                html += '<div class="footnotes"><h3>Footnotes</h3>';
+                footnotes.forEach((fn, index) => {
+                    html += `<div class="footnote-item" id="fn${index + 1}">
+                        <strong>${index + 1}.</strong> ${fn.content}
+                        <a href="#fnref${index + 1}" class="footnote-back">↩</a>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+            
+            return html;
+        }
+        
+        // Function to render LaTeX math
+        function renderMath(element) {
+            if (window.renderMathInElement) {
+                renderMathInElement(element, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ]
+                });
+            }
+        }
+        
+
+        
+        // Function to highlight code
+        function highlightCode(element) {
+            if (window.Prism) {
+                Prism.highlightAllUnder(element);
+            }
         }
         
         function previewMedia() {
@@ -293,8 +599,12 @@
                     const chunk = decoder.decode(value);
                     accumulatedText += chunk;
                     
-                    // Parse and render markdown with custom highlighting
+                    // Parse and render markdown with all enhancements
                     responseDiv.innerHTML = parseCustomMarkdown(accumulatedText);
+                    
+                    // Apply post-processing
+                    highlightCode(responseDiv);
+                    renderMath(responseDiv);
                 }
                 
             } catch (error) {

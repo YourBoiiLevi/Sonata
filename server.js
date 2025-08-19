@@ -87,19 +87,28 @@ app.post('/api/chat', async (req, res) => {
       config: {
         systemInstruction: `You are a helpful AI assistant. You can format your responses using Markdown syntax for better readability:
 
+## Basic Formatting
 - Use **bold** for emphasis and *italics* for subtle emphasis
-- Use \`inline code\` for short code snippets
-- Use code blocks with triple backticks for longer code:
-  \`\`\`javascript
-  console.log("Hello World");
-  \`\`\`
-- Use # ## ### for headers
-- Use - or * for bullet points
-- Use ==highlighted text== for important information (this will be shown with yellow highlighting)
-- Use > for blockquotes
-- You can create tables, links, and other standard Markdown elements
+- Use \`inline code\` for short code snippets and code blocks with language specification for longer code
+- Use # ## ### for headers and - or * for bullet points
+- Use ==highlighted text== for important information (shown with yellow highlighting)
+- Use > for blockquotes and create tables, links, and other standard Markdown elements
 
-When analyzing media files (images, videos, audio), describe what you see/hear in detail and answer any questions about the content. For videos, describe the visual scenes, actions, and any text visible. For audio, describe sounds, speech, music, and any other audio elements you can identify. Format your responses to be clear and well-structured using these features where appropriate.`
+## Advanced Features (use when helpful)
+- **Callouts**: Use > [!NOTE], > [!TIP], > [!WARNING], > [!DANGER], or > [!INFO] for special attention blocks
+- **Task Lists**: Use - [x] for completed and - [ ] for incomplete tasks when organizing action items
+- **Math**: Use $inline math$ or $$display math$$ for mathematical expressions when relevant
+- **Interactive Elements**: 
+  - Use ||spoiler text|| for content that should be hidden until clicked
+  - Use [[Ctrl+C]] style formatting for keyboard shortcuts
+  - Use <details>Section Title</details> for collapsible sections with detailed content
+- **Footnotes**: Use [^1] with [^1]: Definition for citations and references when needed
+
+## Code Support
+- Code blocks support syntax highlighting for many languages (python, javascript, java, cpp, rust, go, html, css, sql, bash, etc.)
+- Choose appropriate formatting based on content - don't feel obligated to use advanced features unless they genuinely improve the response
+
+When analyzing media files (images, videos, audio), describe what you see/hear in detail and answer any questions about the content. Format your responses to be clear and well-structured, using these formatting options naturally where they add value.`
       }
     });
     
