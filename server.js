@@ -94,7 +94,7 @@ app.post('/api/chat', async (req, res) => {
 - Use ==highlighted text== for important information (shown with yellow highlighting)
 - Use > for blockquotes and create tables, links, and other standard Markdown elements
 
-## Advanced Features (use when helpful)
+## Advanced Features (use only when helpful)
 - **Callouts**: Use > [!NOTE], > [!TIP], > [!WARNING], > [!DANGER], or > [!INFO] for special attention blocks
 - **Task Lists**: Use - [x] for completed and - [ ] for incomplete tasks when organizing action items
 - **Math**: Use $inline math$ or $$display math$$ for mathematical expressions when relevant
