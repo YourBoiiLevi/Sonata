@@ -352,6 +352,199 @@
             font-size: 0.8em;
             color: #666;
         }
+        
+        /* Settings Modal */
+        .modal {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+        }
+
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #eee;
+            text-align: right;
+        }
+
+        .modal-footer button {
+            margin-left: 10px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+        }
+
+        .config-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .config-section:last-child {
+            border-bottom: none;
+        }
+
+        .config-section h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+
+        .param-row {
+            margin-bottom: 15px;
+        }
+
+        .param-row label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-container input[type="range"] {
+            flex: 1;
+        }
+
+        .slider-container span {
+            min-width: 40px;
+            text-align: center;
+            font-family: monospace;
+        }
+
+        .param-help {
+            font-size: 12px;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #007bff;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .preset-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .preset-btn {
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .preset-btn:hover {
+            background: #f8f9fa;
+        }
+
+        .preset-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .preset-btn:disabled {
+            background: #f8f9fa;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -359,14 +552,18 @@
     
     <div>
         <input type="text" id="messageInput" placeholder="Enter your message..." />
-        <div>
-            <label for="modelSelect">Model:</label>
-            <select id="modelSelect">
-                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite - Most cost-efficient model supporting high throughput</option>
-                <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash - Adaptive thinking, cost efficiency</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro - Enhanced thinking and reasoning, multimodal understanding, advanced coding</option>
-            </select>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="flex: 1;">
+                <label for="modelSelect">Model:</label>
+                <select id="modelSelect">
+                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite - Most cost-efficient model supporting high throughput</option>
+                    <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash - Adaptive thinking, cost efficiency</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro - Enhanced thinking and reasoning, multimodal understanding, advanced coding</option>
+                </select>
+            </div>
+            <button id="settingsButton" onclick="openSettingsModal()" style="padding: 8px 12px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">⚙️ Settings</button>
         </div>
+        
         <div>
             <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" onchange="previewMedia()" />
             <button id="clearMedia" onclick="clearMedia()">Clear Media</button>
@@ -379,6 +576,129 @@
     </div>
     
     <div id="response">Response will appear here...</div>
+    
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Model Configuration</h3>
+                <span class="close" onclick="closeSettingsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Reasoning Configuration -->
+                <div class="config-section">
+                    <h4>Reasoning</h4>
+                    <div class="toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="reasoningToggle" checked onchange="toggleReasoningMode()">
+                            <span class="slider"></span>
+                        </label>
+                        <span id="reasoningModeLabel">Dynamic</span>
+                    </div>
+                    <div id="reasoningPresets" style="display: none; margin-top: 10px;">
+                        <div class="preset-buttons">
+                            <button class="preset-btn" data-value="0" onclick="setReasoningPreset(0)">None</button>
+                            <button class="preset-btn" data-value="low" onclick="setReasoningPreset('low')">Low</button>
+                            <button class="preset-btn" data-value="medium" onclick="setReasoningPreset('medium')">Medium</button>
+                            <button class="preset-btn active" data-value="high" onclick="setReasoningPreset('high')">High</button>
+                        </div>
+                        <div id="reasoningInfo" style="font-size: 12px; color: #666; margin-top: 5px;"></div>
+                    </div>
+                </div>
+
+                <!-- Advanced Parameters -->
+                <div class="config-section">
+                    <h4>Sampling Parameters</h4>
+                    
+                    <div class="param-row">
+                        <label for="temperatureSlider">Temperature:</label>
+                        <div class="slider-container">
+                            <input type="range" id="temperatureSlider" min="0" max="2" step="0.1" value="1.0">
+                            <span id="temperatureValue">1.0</span>
+                        </div>
+                        <div class="param-help">Controls randomness (0.0 = deterministic, 2.0 = very random)</div>
+                    </div>
+
+                    <div class="param-row">
+                        <label for="topPSlider">Top-P:</label>
+                        <div class="slider-container">
+                            <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.95">
+                            <span id="topPValue">0.95</span>
+                        </div>
+                        <div class="param-help">Nucleus sampling threshold (0.0-1.0)</div>
+                    </div>
+
+                    <div class="param-row">
+                        <label for="topKSlider">Top-K:</label>
+                        <div class="slider-container">
+                            <input type="range" id="topKSlider" min="1" max="40" step="1" value="40">
+                            <span id="topKValue">40</span>
+                        </div>
+                        <div class="param-help">Top-K sampling limit (1-40)</div>
+                    </div>
+
+                    <div class="param-row">
+                        <label for="seedInput">Seed:</label>
+                        <input type="number" id="seedInput" placeholder="Random" style="width: 100px;">
+                        <div class="param-help">Random seed for reproducible outputs</div>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <h4>Penalty Parameters</h4>
+                    
+                    <div class="param-row">
+                        <label for="presencePenaltySlider">Presence Penalty:</label>
+                        <div class="slider-container">
+                            <input type="range" id="presencePenaltySlider" min="-2" max="2" step="0.1" value="0">
+                            <span id="presencePenaltyValue">0.0</span>
+                        </div>
+                        <div class="param-help">Penalize new tokens based on presence (-2.0 to 2.0)</div>
+                    </div>
+
+                    <div class="param-row">
+                        <label for="frequencyPenaltySlider">Frequency Penalty:</label>
+                        <div class="slider-container">
+                            <input type="range" id="frequencyPenaltySlider" min="-2" max="2" step="0.1" value="0">
+                            <span id="frequencyPenaltyValue">0.0</span>
+                        </div>
+                        <div class="param-help">Penalize tokens based on frequency (-2.0 to 2.0)</div>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <h4>Output Parameters</h4>
+                    
+                    <div class="param-row">
+                        <label for="mediaResolution">Media Resolution:</label>
+                        <select id="mediaResolution" style="width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px;">
+                            <option value="">Default</option>
+                            <option value="MEDIA_RESOLUTION_LOW">Low (64 tokens)</option>
+                            <option value="MEDIA_RESOLUTION_MEDIUM">Medium (256 tokens)</option>
+                            <option value="MEDIA_RESOLUTION_HIGH">High (256 tokens, zoomed)</option>
+                        </select>
+                    </div>
+
+                    <div class="param-row">
+                        <label>
+                            <input type="checkbox" id="responseLogprobs"> Response Log Probabilities
+                        </label>
+                        <div class="param-help">Include log probabilities in response</div>
+                    </div>
+
+                    <div class="param-row" id="logprobsRow" style="display: none;">
+                        <label for="logprobsInput">Log Probs Count:</label>
+                        <input type="number" id="logprobsInput" min="1" max="5" value="1" style="width: 80px;">
+                        <div class="param-help">Number of log probabilities to return (1-5)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="resetToDefaults()" style="background: #6c757d;">Reset Defaults</button>
+                <button onclick="closeSettingsModal()" style="background: #007bff;">Done</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         let accumulatedText = '';
@@ -386,6 +706,168 @@
         
         let footnoteCounter = 0;
         let footnotes = [];
+        
+        // Enhanced configuration state
+        const modelRanges = {
+            'gemini-2.5-pro': { min: 128, max: 32768, default: -1, canDisable: false },
+            'gemini-2.5-flash': { min: 0, max: 24576, default: -1, canDisable: true },
+            'gemini-2.5-flash-lite': { min: 512, max: 24576, default: 0, canDisable: true }
+        };
+
+        let currentReasoningMode = 'dynamic';
+        let currentReasoningPreset = 'high';
+
+        // Calculate preset values for each model
+        function getPresetValues(modelKey) {
+            const range = modelRanges[modelKey];
+            if (!range) return {};
+            
+            return {
+                none: 0,
+                low: Math.floor(range.max * 0.25),
+                medium: Math.floor(range.max * 0.5),
+                high: range.max
+            };
+        }
+
+        // Modal functions
+        function openSettingsModal() {
+            document.getElementById('settingsModal').style.display = 'block';
+            updateReasoningUI();
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+
+        // Reasoning toggle functions
+        function toggleReasoningMode() {
+            const toggle = document.getElementById('reasoningToggle');
+            const presetsDiv = document.getElementById('reasoningPresets');
+            const modeLabel = document.getElementById('reasoningModeLabel');
+            
+            if (toggle.checked) {
+                currentReasoningMode = 'dynamic';
+                modeLabel.textContent = 'Dynamic';
+                presetsDiv.style.display = 'none';
+            } else {
+                currentReasoningMode = 'controlled';
+                modeLabel.textContent = 'Controlled';
+                presetsDiv.style.display = 'block';
+                updateReasoningUI();
+            }
+        }
+
+        function setReasoningPreset(preset) {
+            currentReasoningPreset = preset;
+            updateReasoningUI();
+            
+            // Update active button
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-value="${preset}"]`).classList.add('active');
+        }
+
+        function updateReasoningUI() {
+            const modelSelect = document.getElementById('modelSelect');
+            const selectedModel = modelSelect.value;
+            const range = modelRanges[selectedModel];
+            const presets = getPresetValues(selectedModel);
+            const reasoningInfo = document.getElementById('reasoningInfo');
+            
+            if (!range) return;
+            
+            // Update preset button states
+            const noneBtn = document.querySelector('[data-value="0"]');
+            if (range.canDisable) {
+                noneBtn.disabled = false;
+                noneBtn.textContent = 'None';
+            } else {
+                noneBtn.disabled = true;
+                noneBtn.textContent = 'None (N/A)';
+                if (currentReasoningPreset === 'none') {
+                    currentReasoningPreset = 'low';
+                    setReasoningPreset('low');
+                }
+            }
+            
+            // Update info text
+            if (currentReasoningMode === 'controlled') {
+                const currentValue = presets[currentReasoningPreset] || presets.high;
+                reasoningInfo.textContent = `${currentValue} tokens (Range: ${range.min}-${range.max})`;
+            }
+        }
+
+        // Parameter update functions
+        function updateSliderDisplay(sliderId, valueId, precision = 1) {
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(valueId);
+            valueSpan.textContent = parseFloat(slider.value).toFixed(precision);
+        }
+
+        function toggleLogprobs() {
+            const checkbox = document.getElementById('responseLogprobs');
+            const logprobsRow = document.getElementById('logprobsRow');
+            logprobsRow.style.display = checkbox.checked ? 'block' : 'none';
+        }
+
+        function resetToDefaults() {
+            // Reset all controls to default values
+            document.getElementById('reasoningToggle').checked = true;
+            document.getElementById('temperatureSlider').value = 1.0;
+            document.getElementById('topPSlider').value = 0.95;
+            document.getElementById('topKSlider').value = 40;
+            document.getElementById('seedInput').value = '';
+            document.getElementById('presencePenaltySlider').value = 0;
+            document.getElementById('frequencyPenaltySlider').value = 0;
+            document.getElementById('mediaResolution').value = '';
+            document.getElementById('responseLogprobs').checked = false;
+            document.getElementById('logprobsInput').value = 1;
+            
+            currentReasoningMode = 'dynamic';
+            currentReasoningPreset = 'high';
+            
+            toggleReasoningMode();
+            updateAllDisplays();
+        }
+
+        function updateAllDisplays() {
+            updateSliderDisplay('temperatureSlider', 'temperatureValue', 1);
+            updateSliderDisplay('topPSlider', 'topPValue', 2);
+            updateSliderDisplay('topKSlider', 'topKValue', 0);
+            updateSliderDisplay('presencePenaltySlider', 'presencePenaltyValue', 1);
+            updateSliderDisplay('frequencyPenaltySlider', 'frequencyPenaltyValue', 1);
+            toggleLogprobs();
+        }
+        
+        // Event listeners for configuration controls
+        document.addEventListener('DOMContentLoaded', function() {
+            const modelSelect = document.getElementById('modelSelect');
+            
+            // Model change handler
+            modelSelect.addEventListener('change', updateReasoningUI);
+            
+            // Slider event listeners
+            document.getElementById('temperatureSlider').addEventListener('input', () => updateSliderDisplay('temperatureSlider', 'temperatureValue', 1));
+            document.getElementById('topPSlider').addEventListener('input', () => updateSliderDisplay('topPSlider', 'topPValue', 2));
+            document.getElementById('topKSlider').addEventListener('input', () => updateSliderDisplay('topKSlider', 'topKValue', 0));
+            document.getElementById('presencePenaltySlider').addEventListener('input', () => updateSliderDisplay('presencePenaltySlider', 'presencePenaltyValue', 1));
+            document.getElementById('frequencyPenaltySlider').addEventListener('input', () => updateSliderDisplay('frequencyPenaltySlider', 'frequencyPenaltyValue', 1));
+            document.getElementById('responseLogprobs').addEventListener('change', toggleLogprobs);
+            
+            // Initialize displays
+            updateReasoningUI();
+            updateAllDisplays();
+            
+            // Close modal when clicking outside
+            window.addEventListener('click', function(event) {
+                const modal = document.getElementById('settingsModal');
+                if (event.target === modal) {
+                    closeSettingsModal();
+                }
+            });
+        });
         
         // Enhanced function to handle all custom markdown syntax
         function parseCustomMarkdown(text) {
@@ -577,10 +1059,41 @@
             accumulatedText = '';
             
             try {
-                // Prepare the request body
+                // Prepare the request body with enhanced configuration
+                const config = {
+                    temperature: parseFloat(document.getElementById('temperatureSlider').value),
+                    topP: parseFloat(document.getElementById('topPSlider').value),
+                    topK: parseInt(document.getElementById('topKSlider').value),
+                    presencePenalty: parseFloat(document.getElementById('presencePenaltySlider').value),
+                    frequencyPenalty: parseFloat(document.getElementById('frequencyPenaltySlider').value),
+                    mediaResolution: document.getElementById('mediaResolution').value || undefined
+                };
+
+                // Add reasoning configuration
+                if (currentReasoningMode === 'dynamic') {
+                    config.thinkingBudget = -1;
+                } else {
+                    const modelKey = document.getElementById('modelSelect').value;
+                    const presets = getPresetValues(modelKey);
+                    config.thinkingBudget = presets[currentReasoningPreset] || presets.high;
+                }
+
+                // Add seed if specified
+                const seedValue = document.getElementById('seedInput').value;
+                if (seedValue) {
+                    config.seed = parseInt(seedValue);
+                }
+
+                // Add logprobs configuration
+                if (document.getElementById('responseLogprobs').checked) {
+                    config.responseLogprobs = true;
+                    config.logprobs = parseInt(document.getElementById('logprobsInput').value);
+                }
+
                 const requestBody = { 
                     message: message || '',
-                    model: document.getElementById('modelSelect').value
+                    model: document.getElementById('modelSelect').value,
+                    config: config
                 };
                 
                 // If there's media, convert it to base64
