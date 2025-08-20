@@ -19,6 +19,15 @@ if (!process.env.GEMINI_API_KEY) {
 // Initialize Gemini AI client
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+function isDocumentType(mimeType) {
+  const documentTypes = [
+    'application/pdf', 'text/plain', 'text/markdown', 'text/html', 
+    'text/x-python', 'application/json', 'text/csv', 'text/javascript',
+    'text/css', 'application/xml', 'text/xml'
+  ];
+  return documentTypes.includes(mimeType);
+}
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(__dirname));
 
@@ -59,7 +68,10 @@ app.post('/api/chat', async (req, res) => {
         'video/mp4', 'video/mpeg', 'video/mov', 'video/avi', 'video/x-flv', 
         'video/mpg', 'video/webm', 'video/wmv', 'video/3gpp',
         // Audio
-        'audio/wav', 'audio/mp3', 'audio/aiff', 'audio/aac', 'audio/ogg', 'audio/flac'
+        'audio/wav', 'audio/mp3', 'audio/aiff', 'audio/aac', 'audio/ogg', 'audio/flac',
+        'application/pdf', 'text/plain', 'text/markdown', 'text/html', 
+        'text/x-python', 'application/json', 'text/csv', 'text/javascript',
+        'text/css', 'application/xml', 'text/xml', 'application/octet-stream'
       ];
       
       if (!supportedFormats.includes(media.mimeType)) {
@@ -68,9 +80,19 @@ app.post('/api/chat', async (req, res) => {
         });
       }
       
+      let processedMimeType = media.mimeType;
+      if (media.mimeType === 'application/octet-stream' || 
+          media.mimeType === 'text/x-python' ||
+          media.mimeType === 'text/javascript' ||
+          media.mimeType === 'text/css' ||
+          media.mimeType === 'application/xml' ||
+          media.mimeType === 'text/xml') {
+        processedMimeType = 'text/plain';
+      }
+      
       parts.push({
         inlineData: {
-          mimeType: media.mimeType,
+          mimeType: processedMimeType,
           data: media.data
         }
       });
