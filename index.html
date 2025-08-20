@@ -560,6 +560,62 @@
             color: #6c757d;
             cursor: not-allowed;
         }
+
+
+        /* Copy Button Styles */
+        .copy-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0.8;
+            z-index: 10;
+            transition: opacity 0.2s, background-color 0.2s;
+        }
+
+        .copy-button:hover {
+            opacity: 1;
+            background: #5a6268;
+        }
+
+        .copy-button.copied {
+            background: #28a745;
+        }
+
+        #response {
+            position: relative;
+        }
+
+        #response pre {
+            position: relative;
+        }
+
+        /* Diff Highlighting Styles */
+        .diff-add {
+            background-color: #d4edda;
+            color: #155724;
+            display: block;
+            padding-left: 0.5em;
+            margin-left: -0.5em;
+            padding-right: 0.5em;
+            margin-right: -0.5em;
+        }
+
+        .diff-remove {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
+            padding-left: 0.5em;
+            margin-left: -0.5em;
+            padding-right: 0.5em;
+            margin-right: -0.5em;
+        }
     </style>
 </head>
 <body>
@@ -682,6 +738,28 @@
                             <span id="frequencyPenaltyValue">0.0</span>
                         </div>
                         <div class="param-help">Penalize tokens based on frequency (-2.0 to 2.0)</div>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <h4>Custom Instructions</h4>
+                    
+                    <div class="param-row">
+                        <label for="personalityPreset">Personality Preset:</label>
+                        <select id="personalityPreset" style="width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px;" onchange="handlePersonalityChange()">
+                            <option value="">Default Assistant</option>
+                            <option value="helpful">Helpful Assistant</option>
+                            <option value="code_reviewer">Code Reviewer</option>
+                            <option value="creative_writer">Creative Writer</option>
+                            <option value="custom">Custom Instructions</option>
+                        </select>
+                        <div class="param-help">Choose a personality preset or use custom instructions</div>
+                    </div>
+                    
+                    <div class="param-row" id="customInstructionsRow" style="display: none;">
+                        <label for="customInstructions">Custom Instructions:</label>
+                        <textarea id="customInstructions" placeholder="Enter custom instructions to add to the system prompt..." style="width: 100%; height: 100px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
+                        <div class="param-help">These instructions will be added to the system prompt</div>
                     </div>
                 </div>
 
@@ -843,12 +921,15 @@
             document.getElementById('mediaResolution').value = '';
             document.getElementById('responseLogprobs').checked = false;
             document.getElementById('logprobsInput').value = 1;
+            document.getElementById('personalityPreset').value = '';
+            document.getElementById('customInstructions').value = '';
             
             currentReasoningMode = 'dynamic';
             currentReasoningPreset = 'high';
             
             toggleReasoningMode();
             updateAllDisplays();
+            handlePersonalityChange();
         }
 
         function updateAllDisplays() {
@@ -878,6 +959,7 @@
             // Initialize displays
             updateReasoningUI();
             updateAllDisplays();
+            loadCustomInstructions();
             
             // Close modal when clicking outside
             window.addEventListener('click', function(event) {
@@ -894,28 +976,29 @@
             footnoteCounter = 0;
             footnotes = [];
             
-            // 1. Handle spoiler tags ||text||
+            
+            // 2. Handle spoiler tags ||text||
             text = text.replace(/\|\|(.*?)\|\|/g, '<span class="spoiler" onclick="this.classList.add(\'revealed\');">$1</span>');
             
-            // 2. Handle keyboard shortcuts [[key]]
+            // 3. Handle keyboard shortcuts [[key]]
             text = text.replace(/\[\[(.*?)\]\]/g, '<kbd class="kbd">$1</kbd>');
             
-            // 3. Handle highlight syntax ==text==
+            // 4. Handle highlight syntax ==text==
             text = text.replace(/==(.*?)==/g, '<mark>$1</mark>');
             
-            // 4. Handle footnotes [^1]
+            // 5. Handle footnotes [^1]
             text = text.replace(/\[\^(\w+)\](?!:)/g, (match, id) => {
                 footnoteCounter++;
                 return `<a href="#fn${footnoteCounter}" class="footnote-ref" id="fnref${footnoteCounter}">${footnoteCounter}</a>`;
             });
             
-            // 5. Handle footnote definitions [^1]: content
+            // 6. Handle footnote definitions [^1]: content
             text = text.replace(/\[\^(\w+)\]:\s*(.+)/g, (match, id, content) => {
                 footnotes.push({ id, content });
                 return ''; // Remove from main content
             });
             
-            // 6. Handle callout blocks
+            // 7. Handle callout blocks
             text = text.replace(/^>\s*\[!(NOTE|TIP|WARNING|DANGER|INFO)\]\s*(.*)$/gm, (match, type, title) => {
                 const typeClass = type.toLowerCase();
                 const icons = {
@@ -952,14 +1035,15 @@
                 }
             }).join('\n');
             
-            // 7. Handle collapsible sections <details>Title</details>
+            // 8. Handle collapsible sections <details>Title</details>
             text = text.replace(/<details>([^<]+)<\/details>/g, '<details><summary>$1</summary><div class="content">');
             text = text.replace(/<\/details>/g, '</div></details>');
             
-            // 8. Parse with marked.js
+            // 9. Parse with marked.js
             let html = marked.parse(text);
             
-            // 9. Post-process for task lists
+            
+            // 10. Post-process for task lists
             html = html.replace(/<ul>/g, '<ul class="task-list">');
             html = html.replace(/<li>\s*\[([x ])\]\s*(.*?)<\/li>/gi, (match, checked, content) => {
                 const isChecked = checked.toLowerCase() === 'x';
@@ -971,7 +1055,7 @@
                 </li>`;
             });
             
-            // 10. Add footnotes section if any exist
+            // 11. Add footnotes section if any exist
             if (footnotes.length > 0) {
                 html += '<div class="footnotes"><h3>Footnotes</h3>';
                 footnotes.forEach((fn, index) => {
@@ -1117,6 +1201,17 @@
                     config.logprobs = parseInt(document.getElementById('logprobsInput').value);
                 }
 
+                // Add custom instructions configuration
+                const personalityPreset = document.getElementById('personalityPreset').value;
+                const customInstructions = document.getElementById('customInstructions').value.trim();
+                
+                if (personalityPreset === 'custom' && customInstructions) {
+                    config.personalityPreset = 'custom';
+                    config.customInstructions = customInstructions;
+                } else if (personalityPreset && personalityPreset !== '' && personalityPreset !== 'custom') {
+                    config.personalityPreset = personalityPreset;
+                }
+
                 const requestBody = { 
                     message: message || '',
                     model: document.getElementById('modelSelect').value,
@@ -1156,6 +1251,7 @@
                 const decoder = new TextDecoder();
                 
                 responseDiv.className = '';
+                let mainContent = '';
                 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -1163,14 +1259,20 @@
                     if (done) break;
                     
                     const chunk = decoder.decode(value);
-                    accumulatedText += chunk;
                     
-                    // Parse and render markdown with all enhancements
-                    responseDiv.innerHTML = parseCustomMarkdown(accumulatedText);
+                    // Gemini streams plain text, not JSON with thinking content
+                    // For now, treat all content as main content
+                    mainContent += chunk;
+                    
+                    // Render the content
+                    if (mainContent.trim()) {
+                        responseDiv.innerHTML = parseCustomMarkdown(mainContent);
+                    }
                     
                     // Apply post-processing
                     highlightCode(responseDiv);
                     renderMath(responseDiv);
+                    addCopyButtons();
                 }
                 
             } catch (error) {
@@ -1186,6 +1288,101 @@
             }
         }
         
+        // Custom Instructions Functions
+        function handlePersonalityChange() {
+            const preset = document.getElementById('personalityPreset').value;
+            const customRow = document.getElementById('customInstructionsRow');
+            
+            if (preset === 'custom') {
+                customRow.style.display = 'block';
+            } else {
+                customRow.style.display = 'none';
+            }
+            
+            saveCustomInstructions();
+        }
+
+        function saveCustomInstructions() {
+            const preset = document.getElementById('personalityPreset').value;
+            const custom = document.getElementById('customInstructions').value;
+            
+            localStorage.setItem('personalityPreset', preset);
+            localStorage.setItem('customInstructions', custom);
+        }
+
+        function loadCustomInstructions() {
+            const savedPreset = localStorage.getItem('personalityPreset');
+            const savedCustom = localStorage.getItem('customInstructions');
+            
+            if (savedPreset) {
+                document.getElementById('personalityPreset').value = savedPreset;
+            }
+            if (savedCustom) {
+                document.getElementById('customInstructions').value = savedCustom;
+            }
+            
+            handlePersonalityChange();
+        }
+
+
+        // Copy Button Functions
+        function addCopyButtons() {
+            const responseDiv = document.getElementById('response');
+            
+            // Add copy button to response container if it doesn't exist
+            if (!responseDiv.querySelector('.copy-response-btn')) {
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-button copy-response-btn';
+                copyBtn.textContent = '📋';
+                copyBtn.onclick = () => copyToClipboard(responseDiv.textContent, copyBtn);
+                responseDiv.appendChild(copyBtn);
+            }
+            
+            // Add copy buttons to pre code blocks
+            responseDiv.querySelectorAll('pre').forEach(pre => {
+                if (!pre.querySelector('.copy-code-btn')) {
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'copy-button copy-code-btn';
+                    copyBtn.textContent = '📋';
+                    copyBtn.onclick = () => {
+                        const codeElement = pre.querySelector('code');
+                        const text = codeElement ? codeElement.textContent : pre.textContent;
+                        copyToClipboard(text, copyBtn);
+                    };
+                    pre.style.position = 'relative';
+                    pre.appendChild(copyBtn);
+                }
+            });
+            
+        }
+
+        function copyToClipboard(text, button) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = '✓';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                const originalText = button.textContent;
+                button.textContent = '✗';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Event listeners for custom instructions
+        document.addEventListener('DOMContentLoaded', function() {
+            const customInstructionsTextarea = document.getElementById('customInstructions');
+            if (customInstructionsTextarea) {
+                customInstructionsTextarea.addEventListener('input', saveCustomInstructions);
+            }
+        });
+
         // Allow sending with Enter key
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {

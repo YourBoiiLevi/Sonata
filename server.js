@@ -98,9 +98,26 @@ app.post('/api/chat', async (req, res) => {
       });
     }
     
+    let systemInstruction = `You are a helpful AI assistant. You can format your responses using Markdown syntax for better readability:`;
+    
+    if (config && config.customInstructions && config.personalityPreset === 'custom') {
+      systemInstruction = config.customInstructions + '\n\n' + systemInstruction;
+    }
+    
+    if (config && config.personalityPreset && config.personalityPreset !== '' && config.personalityPreset !== 'custom') {
+      const personalities = {
+        helpful: "You are a helpful and friendly assistant who provides clear, accurate, and useful information. Always be polite and supportive.",
+        code_reviewer: "You are an experienced code reviewer. Focus on code quality, best practices, security, performance, and maintainability. Provide constructive feedback and suggestions for improvement.",
+        creative_writer: "You are a creative writer with expertise in storytelling, poetry, and creative expression. Help with writing projects, brainstorming ideas, and improving narrative techniques."
+      };
+      if (personalities[config.personalityPreset]) {
+        systemInstruction = personalities[config.personalityPreset] + '\n\n' + systemInstruction;
+      }
+    }
+
     // Generate streaming response from Gemini
     const generationConfig = {
-      systemInstruction: `You are a helpful AI assistant. You can format your responses using Markdown syntax for better readability:
+      systemInstruction: systemInstruction + `
 
 ## Basic Formatting
 - Use **bold** for emphasis and *italics* for subtle emphasis
@@ -127,11 +144,6 @@ When analyzing media files (images, videos, audio), describe what you see/hear i
     };
 
     if (config) {
-      if (config.thinkingBudget !== undefined) {
-        generationConfig.thinkingConfig = {
-          thinkingBudget: config.thinkingBudget
-        };
-      }
       if (config.temperature !== undefined) {
         generationConfig.temperature = config.temperature;
       }
