@@ -100,9 +100,11 @@ app.post('/api/chat', async (req, res) => {
     
     let systemInstruction = `You are a helpful AI assistant. You can format your responses using Markdown syntax for better readability:`;
     
-    if (config && config.customInstructions) {
+    if (config && config.customInstructions && config.personalityPreset === 'custom') {
       systemInstruction = config.customInstructions + '\n\n' + systemInstruction;
-    } else if (config && config.personalityPreset) {
+    }
+    
+    if (config && config.personalityPreset && config.personalityPreset !== '' && config.personalityPreset !== 'custom') {
       const personalities = {
         helpful: "You are a helpful and friendly assistant who provides clear, accurate, and useful information. Always be polite and supportive.",
         code_reviewer: "You are an experienced code reviewer. Focus on code quality, best practices, security, performance, and maintainability. Provide constructive feedback and suggestions for improvement.",

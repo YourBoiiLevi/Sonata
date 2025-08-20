@@ -1083,27 +1083,6 @@
             // 9. Parse with marked.js
             let html = marked.parse(text);
             
-            // 9.5. Apply diff highlighting after marked.js processing
-            // Simple approach: target code elements that contain diff content
-            html = html.replace(/<code([^>]*)>([\s\S]*?)<\/code>/g, (match, attributes, codeContent) => {
-                // Check if this code block contains diff content
-                if (codeContent.includes('-    ') || codeContent.includes('+    ') || 
-                    (codeContent.includes('old_code') && codeContent.includes('new_code')) ||
-                    (codeContent.includes('-') && codeContent.includes('+') && codeContent.length > 50)) {
-                    
-                    const processedCode = codeContent.split('\n').map(line => {
-                        if (line.includes('-    ') || (line.trim().startsWith('-') && line.length > 5)) {
-                            return `<span class="diff-remove">${line}</span>`;
-                        } else if (line.includes('+    ') || (line.trim().startsWith('+') && line.length > 5)) {
-                            return `<span class="diff-add">${line}</span>`;
-                        }
-                        return line;
-                    }).join('\n');
-                    
-                    return `<code${attributes}>${processedCode}</code>`;
-                }
-                return match;
-            });
             
             // 10. Post-process for task lists
             html = html.replace(/<ul>/g, '<ul class="task-list">');
@@ -1267,10 +1246,11 @@
                 const personalityPreset = document.getElementById('personalityPreset').value;
                 const customInstructions = document.getElementById('customInstructions').value.trim();
                 
-                if (personalityPreset && personalityPreset !== 'custom') {
-                    config.personalityPreset = personalityPreset;
-                } else if (customInstructions) {
+                if (personalityPreset === 'custom' && customInstructions) {
+                    config.personalityPreset = 'custom';
                     config.customInstructions = customInstructions;
+                } else if (personalityPreset && personalityPreset !== '' && personalityPreset !== 'custom') {
+                    config.personalityPreset = personalityPreset;
                 }
 
                 const requestBody = { 
@@ -1323,54 +1303,14 @@
                     
                     const chunk = decoder.decode(value);
                     
-                    // Try to parse as JSON to detect thinking content
-                    try {
-                        const lines = chunk.split('\n');
-                        for (const line of lines) {
-                            if (line.trim()) {
-                                try {
-                                    const parsed = JSON.parse(line);
-                                    if (parsed.candidates && parsed.candidates[0] && parsed.candidates[0].content && parsed.candidates[0].content.parts) {
-                                        for (const part of parsed.candidates[0].content.parts) {
-                                            if (part.thought && part.text) {
-                                                thinkingContent += part.text;
-                                                isThinking = true;
-                                            } else if (part.text && !part.thought) {
-                                                mainContent += part.text;
-                                            }
-                                        }
-                                    }
-                                } catch (e) {
-                                    // Not JSON, treat as regular streaming text
-                                    mainContent += line;
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        // Not JSON, treat as regular streaming text
-                        mainContent += chunk;
-                    }
+                    // Gemini streams plain text, not JSON with thinking content
+                    // For now, treat all content as main content
+                    mainContent += chunk;
                     
                     // Render the content
-                    let html = '';
-                    
-                    if (thinkingContent.trim()) {
-                        html += `<div class="thinking-section">
-                            <div class="thinking-header" onclick="toggleThinking(this)">
-                                <span class="thinking-toggle">▶</span>
-                                <span>🤔 Thinking Process</span>
-                            </div>
-                            <div class="thinking-content">
-                                ${parseCustomMarkdown(thinkingContent)}
-                            </div>
-                        </div>`;
-                    }
-                    
                     if (mainContent.trim()) {
-                        html += parseCustomMarkdown(mainContent);
+                        responseDiv.innerHTML = parseCustomMarkdown(mainContent);
                     }
-                    
-                    responseDiv.innerHTML = html;
                     
                     // Apply post-processing
                     highlightCode(responseDiv);
@@ -1451,7 +1391,7 @@
             if (!responseDiv.querySelector('.copy-response-btn')) {
                 const copyBtn = document.createElement('button');
                 copyBtn.className = 'copy-button copy-response-btn';
-                copyBtn.textContent = 'Copy Response';
+                copyBtn.textContent = '📋';
                 copyBtn.onclick = () => copyToClipboard(responseDiv.textContent, copyBtn);
                 responseDiv.appendChild(copyBtn);
             }
@@ -1461,7 +1401,7 @@
                 if (!pre.querySelector('.copy-code-btn')) {
                     const copyBtn = document.createElement('button');
                     copyBtn.className = 'copy-button copy-code-btn';
-                    copyBtn.textContent = 'Copy Code';
+                    copyBtn.textContent = '📋';
                     copyBtn.onclick = () => {
                         const codeElement = pre.querySelector('code');
                         const text = codeElement ? codeElement.textContent : pre.textContent;
@@ -1477,7 +1417,7 @@
                 if (!code.closest('pre') && !code.querySelector('.copy-code-btn') && code.textContent.length > 10) {
                     const copyBtn = document.createElement('button');
                     copyBtn.className = 'copy-button copy-code-btn';
-                    copyBtn.textContent = 'Copy Code';
+                    copyBtn.textContent = '📋';
                     copyBtn.onclick = () => copyToClipboard(code.textContent, copyBtn);
                     code.style.position = 'relative';
                     code.style.display = 'inline-block';
@@ -1489,7 +1429,7 @@
         function copyToClipboard(text, button) {
             navigator.clipboard.writeText(text).then(() => {
                 const originalText = button.textContent;
-                button.textContent = 'Copied!';
+                button.textContent = '✓';
                 button.classList.add('copied');
                 setTimeout(() => {
                     button.textContent = originalText;
@@ -1498,7 +1438,7 @@
             }).catch(err => {
                 console.error('Failed to copy text: ', err);
                 const originalText = button.textContent;
-                button.textContent = 'Copy Failed';
+                button.textContent = '✗';
                 setTimeout(() => {
                     button.textContent = originalText;
                 }, 2000);
