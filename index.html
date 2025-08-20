@@ -561,47 +561,6 @@
             cursor: not-allowed;
         }
 
-        /* Thinking Section Styles */
-        .thinking-section {
-            margin-bottom: 15px;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            background: #f8f9fa;
-        }
-
-        .thinking-header {
-            padding: 10px 15px;
-            background: #e9ecef;
-            border-bottom: 1px solid #e0e0e0;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            user-select: none;
-        }
-
-        .thinking-header:hover {
-            background: #dee2e6;
-        }
-
-        .thinking-content {
-            padding: 15px;
-            display: none;
-            border-top: 1px solid #e0e0e0;
-            background: white;
-        }
-
-        .thinking-content.expanded {
-            display: block;
-        }
-
-        .thinking-toggle {
-            transition: transform 0.2s;
-        }
-
-        .thinking-toggle.expanded {
-            transform: rotate(90deg);
-        }
 
         /* Copy Button Styles */
         .copy-button {
@@ -1292,9 +1251,7 @@
                 const decoder = new TextDecoder();
                 
                 responseDiv.className = '';
-                let thinkingContent = '';
                 let mainContent = '';
-                let isThinking = false;
                 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -1367,21 +1324,6 @@
             handlePersonalityChange();
         }
 
-        // Thinking Section Functions
-        function toggleThinking(header) {
-            const content = header.nextElementSibling;
-            const toggle = header.querySelector('.thinking-toggle');
-            
-            if (content.classList.contains('expanded')) {
-                content.classList.remove('expanded');
-                toggle.textContent = '▶';
-                toggle.classList.remove('expanded');
-            } else {
-                content.classList.add('expanded');
-                toggle.textContent = '▼';
-                toggle.classList.add('expanded');
-            }
-        }
 
         // Copy Button Functions
         function addCopyButtons() {
@@ -1412,18 +1354,6 @@
                 }
             });
             
-            // Add copy buttons to standalone code blocks (not in pre)
-            responseDiv.querySelectorAll('code').forEach(code => {
-                if (!code.closest('pre') && !code.querySelector('.copy-code-btn') && code.textContent.length > 10) {
-                    const copyBtn = document.createElement('button');
-                    copyBtn.className = 'copy-button copy-code-btn';
-                    copyBtn.textContent = '📋';
-                    copyBtn.onclick = () => copyToClipboard(code.textContent, copyBtn);
-                    code.style.position = 'relative';
-                    code.style.display = 'inline-block';
-                    code.appendChild(copyBtn);
-                }
-            });
         }
 
         function copyToClipboard(text, button) {

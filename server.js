@@ -144,12 +144,6 @@ When analyzing media files (images, videos, audio), describe what you see/hear i
     };
 
     if (config) {
-      if (config.thinkingBudget !== undefined) {
-        generationConfig.thinkingConfig = {
-          thinkingBudget: config.thinkingBudget,
-          includeThoughts: true
-        };
-      }
       if (config.temperature !== undefined) {
         generationConfig.temperature = config.temperature;
       }
