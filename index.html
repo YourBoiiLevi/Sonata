@@ -97,6 +97,21 @@
             font-size: 14px;
             display: none;
         }
+
+        #documentIndicator {
+            margin: 10px 0;
+            padding: 8px;
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .document-icon {
+            margin-right: 8px;
+            color: #2196f3;
+        }
         
         #response {
             margin-top: 20px;
@@ -565,10 +580,14 @@
         </div>
         
         <div>
-            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" onchange="previewMedia()" />
+            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*,application/pdf,text/plain,text/markdown,text/html,text/x-python,application/json,text/csv,text/javascript,text/css,application/xml,text/xml" onchange="previewMedia()" />
             <button id="clearMedia" onclick="clearMedia()">Clear Media</button>
         </div>
         <div id="mediaInfo"></div>
+        <div id="documentIndicator">
+            <span class="document-icon">📄</span>
+            <span id="documentInfo"></span>
+        </div>
         <img id="mediaPreview" alt="Media preview" />
         <video id="videoPreview" controls style="display: none; max-width: 300px;"></video>
         <audio id="audioPreview" controls style="display: none; max-width: 300px;"></audio>
@@ -1027,6 +1046,12 @@
                     } else if (file.type.startsWith('audio/')) {
                         audioPreview.src = e.target.result;
                         audioPreview.style.display = 'block';
+                    } else {
+                        const documentIndicator = document.getElementById('documentIndicator');
+                        const documentInfo = document.getElementById('documentInfo');
+                        documentInfo.textContent = `Document ready for upload: ${file.name}`;
+                        documentIndicator.style.display = 'block';
+                        mediaInfo.innerHTML += '<br><em>Document ready for upload</em>';
                     }
                 };
                 
@@ -1041,6 +1066,8 @@
             document.getElementById('audioPreview').style.display = 'none';
             document.getElementById('mediaInfo').style.display = 'none';
             document.getElementById('clearMedia').style.display = 'none';
+            const docIndicator = document.getElementById('documentIndicator');
+            if (docIndicator) docIndicator.style.display = 'none';
             selectedMedia = null;
         }
         
