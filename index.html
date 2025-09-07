@@ -4,1755 +4,657 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gemini API Chat</title>
-    <!-- Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.2/marked.min.js"></script>
-    
-    <!-- Code syntax highlighting -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css">
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
-    
-    <!-- LaTeX rendering -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dexie@4.0.8/dist/dexie.min.js"></script>
-
-    
-
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        #messageInput {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 16px;
-        }
-        
-        #sendButton {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        
-        #sendButton:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        
-        #modelSelect {
-            width: 100%;
-            padding: 8px;
-            margin: 5px 0 10px 0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
-            background: white;
-        }
-        
-        label[for="modelSelect"] {
-            font-weight: bold;
-            font-size: 14px;
-        }
-        
-        #mediaInput {
-            margin: 10px 0;
-        }
-        
-        #mediaPreview {
-            margin: 10px 0;
-            max-width: 300px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-            display: none;
-        }
-        
-        #clearMedia {
-            margin-left: 10px;
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            display: none;
-        }
-        
-        #mediaInfo {
-            margin: 10px 0;
-            padding: 8px;
-            background: #f0f0f0;
-            border-radius: 4px;
-            font-size: 14px;
-            display: none;
-        }
-
-        #documentIndicator {
-            margin: 10px 0;
-            padding: 8px;
-            background: #e3f2fd;
-            border: 1px solid #2196f3;
-            border-radius: 4px;
-            font-size: 14px;
-            display: none;
-        }
-        
-        .document-icon {
-            margin-right: 8px;
-            color: #2196f3;
-        }
-        
-        #response {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: #f9f9f9;
-            min-height: 50px;
-            line-height: 1.6;
-        }
-        
-        #response h1, #response h2, #response h3 {
-            margin-top: 1.5em;
-            margin-bottom: 0.5em;
-        }
-        
-        #response h1 { border-bottom: 2px solid #eee; padding-bottom: 0.3em; }
-        #response h2 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
-        
-        #response code {
-            background: #f4f4f4;
-            padding: 2px 4px;
-            border-radius: 3px;
-            font-family: 'Consolas', 'Monaco', monospace;
-        }
-        
-        #response pre {
-            background: #f4f4f4;
-            padding: 12px;
-            border-radius: 4px;
-            overflow-x: auto;
-            border-left: 4px solid #007bff;
-        }
-        
-        #response pre code {
-            background: none;
-            padding: 0;
-        }
-        
-        #response blockquote {
-            border-left: 4px solid #ddd;
-            margin: 0;
-            padding-left: 16px;
-            color: #666;
-        }
-        
-        #response ul, #response ol {
-            padding-left: 20px;
-        }
-        
-        #response table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 1em 0;
-        }
-        
-        #response th, #response td {
-            border: 1px solid #ddd;
-            padding: 8px 12px;
-            text-align: left;
-        }
-        
-        #response th {
-            background: #f2f2f2;
-            font-weight: bold;
-        }
-        
-        #response mark {
-            background: #ffeb3b;
-            padding: 2px 4px;
-            border-radius: 2px;
-        }
-        
-        .loading {
-            color: #666;
-            font-style: italic;
-        }
-        
-        /* Callout/Alert blocks */
-        .callout {
-            padding: 12px 16px;
-            margin: 16px 0;
-            border-left: 4px solid;
-            border-radius: 0 4px 4px 0;
-            background: rgba(0, 0, 0, 0.05);
-        }
-        
-        .callout-note {
-            border-left-color: #007bff;
-            background: rgba(0, 123, 255, 0.1);
-        }
-        
-        .callout-tip {
-            border-left-color: #28a745;
-            background: rgba(40, 167, 69, 0.1);
-        }
-        
-        .callout-warning {
-            border-left-color: #ffc107;
-            background: rgba(255, 193, 7, 0.1);
-        }
-        
-        .callout-danger {
-            border-left-color: #dc3545;
-            background: rgba(220, 53, 69, 0.1);
-        }
-        
-        .callout-info {
-            border-left-color: #17a2b8;
-            background: rgba(23, 162, 184, 0.1);
-        }
-        
-        .callout-title {
-            font-weight: bold;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-        }
-        
-        .callout-icon {
-            margin-right: 8px;
-            font-size: 1.1em;
-        }
-        
-        /* Collapsible sections */
-        details {
-            margin: 16px 0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        
-        summary {
-            padding: 12px 16px;
-            background: #f8f9fa;
-            cursor: pointer;
-            font-weight: bold;
-            border-radius: 4px 4px 0 0;
-            user-select: none;
-        }
-        
-        summary:hover {
-            background: #e9ecef;
-        }
-        
-        details[open] summary {
-            border-bottom: 1px solid #ddd;
-            border-radius: 4px 4px 0 0;
-        }
-        
-        details .content {
-            padding: 16px;
-        }
-        
-        /* Task lists */
-        .task-list {
-            list-style: none;
-            padding-left: 0;
-        }
-        
-        .task-list-item {
-            display: flex;
-            align-items: flex-start;
-            margin: 4px 0;
-        }
-        
-        .task-list-item input {
-            margin-right: 8px;
-            margin-top: 4px;
-        }
-        
-        .task-list-item.checked {
-            text-decoration: line-through;
-            color: #666;
-        }
-        
-        /* Footnotes */
-        .footnotes {
-            margin-top: 32px;
-            padding-top: 16px;
-            border-top: 1px solid #ddd;
-            font-size: 0.9em;
-        }
-        
-        .footnote-ref {
-            color: #007bff;
-            text-decoration: none;
-            font-size: 0.8em;
-            vertical-align: super;
-        }
-        
-        .footnote-ref:hover {
-            text-decoration: underline;
-        }
-        
-        .footnote-item {
-            margin: 8px 0;
-        }
-        
-        .footnote-back {
-            color: #007bff;
-            text-decoration: none;
-            margin-left: 4px;
-        }
-        
-        /* Spoiler tags */
-        .spoiler {
-            background: #000;
-            color: #000;
-            border-radius: 3px;
-            padding: 2px 4px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .spoiler:hover, .spoiler.revealed {
-            background: #f4f4f4;
-            color: inherit;
-        }
-        
-        /* Keyboard shortcuts */
-        .kbd {
-            display: inline-block;
-            padding: 3px 6px;
-            font-size: 0.85em;
-            line-height: 1;
-            background: #fafbfc;
-            border: 1px solid #d0d7de;
-            border-bottom-color: #afb8c1;
-            border-radius: 6px;
-            box-shadow: inset 0 -1px 0 #afb8c1;
-            font-family: monospace;
-        }
-        
-        /* LaTeX math styling */
-        .katex {
-            font-size: 1.1em;
-        }
-        
-
-        
-        /* Enhanced code blocks */
-        #response pre {
-            position: relative;
-        }
-        
-        #response pre .code-header {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: rgba(0, 0, 0, 0.1);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 0.8em;
-            color: #666;
-        }
-        
-        /* Settings Modal */
-        .modal {
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-
-        .modal-content {
-            background-color: white;
-            margin: 5% auto;
-            padding: 0;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            padding: 20px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-header h3 {
-            margin: 0;
-        }
-
-        .close {
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            color: #aaa;
-        }
-
-        .close:hover {
-            color: #000;
-        }
-
-        .modal-body {
-            padding: 20px;
-        }
-
-        .modal-footer {
-            padding: 20px;
-            border-top: 1px solid #eee;
-            text-align: right;
-        }
-
-        .modal-footer button {
-            margin-left: 10px;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            color: white;
-        }
-
-        .config-section {
-            margin-bottom: 25px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .config-section:last-child {
-            border-bottom: none;
-        }
-
-        .config-section h4 {
-            margin: 0 0 15px 0;
-            color: #333;
-        }
-
-        .param-row {
-            margin-bottom: 15px;
-        }
-
-        .param-row label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .slider-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .slider-container input[type="range"] {
-            flex: 1;
-        }
-
-        .slider-container span {
-            min-width: 40px;
-            text-align: center;
-            font-family: monospace;
-        }
-
-        .param-help {
-            font-size: 12px;
-            color: #666;
-            margin-top: 3px;
-        }
-
-        .toggle-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 24px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .slider {
-            background-color: #007bff;
-        }
-
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-
-        .preset-buttons {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-
-        .preset-btn {
-            padding: 6px 12px;
-            border: 1px solid #ccc;
-            background: white;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        .preset-btn:hover {
-            background: #f8f9fa;
-        }
-
-        .preset-btn.active {
-            background: #007bff;
-            color: white;
-            border-color: #007bff;
-        }
-
-        .preset-btn:disabled {
-            background: #f8f9fa;
-            color: #6c757d;
-            cursor: not-allowed;
-        }
-
-
-        /* Copy Button Styles */
-        .copy-button {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            opacity: 0.8;
-            z-index: 10;
-            transition: opacity 0.2s, background-color 0.2s;
-        }
-
-        .copy-button:hover {
-            opacity: 1;
-            background: #5a6268;
-        }
-
-        .copy-button.copied {
-            background: #28a745;
-        }
-
-        #response {
-            position: relative;
-        }
-
-        #response pre {
-            position: relative;
-        }
-
-        /* Diff Highlighting Styles */
-        .diff-add {
-            background-color: #d4edda;
-            color: #155724;
-            display: block;
-            padding-left: 0.5em;
-            margin-left: -0.5em;
-            padding-right: 0.5em;
-            margin-right: -0.5em;
-        }
-
-        .diff-remove {
-            background-color: #f8d7da;
-            color: #721c24;
-            display: block;
-            padding-left: 0.5em;
-            margin-left: -0.5em;
-            padding-right: 0.5em;
-            margin-right: -0.5em;
-        }
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .row { display: flex; align-items: center; gap: 10px; }
+        #messageInput { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        #sendButton { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        #sendButton:disabled { background: #ccc; cursor: not-allowed; }
+        #modelSelect { width: 100%; padding: 8px; margin: 5px 0 10px 0; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; background: white; }
+        label[for="modelSelect"] { font-weight: bold; font-size: 14px; }
+        #mediaPreview { margin: 10px 0; max-width: 300px; border-radius: 4px; border: 1px solid #ddd; display: none; }
+        #videoPreview, #audioPreview { display:none; max-width:300px; }
+        #clearMedia { margin-left: 10px; background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; display: none; }
+        #mediaInfo, #documentIndicator { margin: 10px 0; padding: 8px; border-radius: 4px; font-size: 14px; display: none; }
+        #documentIndicator { background:#e3f2fd; border: 1px solid #2196f3; }
+        .document-icon { margin-right:8px; color:#2196f3; }
+        #transcript { margin-top:20px; padding:12px; border:1px solid #ddd; border-radius:4px; background:#f9f9f9; max-height:60vh; overflow:auto; }
+        .bubble { padding:10px; margin:8px 0; border-radius:8px; position: relative; }
+        .bubble.user { background:#e9f5ff; border:1px solid #b6e0ff; }
+        .bubble.model { background:#fff; border:1px solid #eee; }
+        .controls { position:absolute; top:6px; right:6px; display:flex; gap:6px; }
+        .small-btn { font-size: 12px; padding: 4px 8px; }
+        .warning { font-size: 12px; color:#b45309; margin-top:6px; }
+        .edit-area { width:100%; min-height:80px; padding:8px; border:1px solid #ccc; border-radius:4px; resize: vertical; font-family: inherit; }
+        .att-list { margin-top:8px; font-size:12px; color:#444; }
+        .att-item { display:flex; align-items:center; justify-content:space-between; background:#f3f4f6; border:1px solid #e5e7eb; border-radius:4px; padding:6px 8px; margin-top:4px; }
+        .badge { display:inline-block; padding:2px 6px; border-radius:999px; font-size:12px; border:1px solid #aaa; color:#555; background:#f8f9fa; }
+        .header-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; }
+        .left, .right { display:flex; gap:8px; align-items:center; }
+        .modal { position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: white; margin: 5% auto; padding: 0; border-radius: 8px; width: 90%; max-width: 720px; max-height: 80vh; overflow-y: auto; }
+        .modal-header { padding: 16px 20px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center; }
+        .modal-body { padding: 16px 20px; }
+        .modal-footer { padding: 16px 20px; border-top: 1px solid #eee; text-align:right; }
+        .close { font-size: 28px; font-weight: bold; cursor: pointer; color: #aaa; }
+        .close:hover { color: #000; }
+        .toggle-switch { position:relative; display:inline-block; width:50px; height:24px; }
+        .toggle-switch input { opacity:0; width:0; height:0; }
+        .slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#ccc; transition:.4s; border-radius:24px; }
+        .slider:before { position:absolute; content:""; height:18px; width:18px; left:3px; bottom:3px; background:#fff; transition:.4s; border-radius:50%; }
+        input:checked + .slider { background:#007bff; }
+        input:checked + .slider:before { transform: translateX(26px); }
+        .tabbar { display:flex; gap:8px; border-bottom:1px solid #eee; margin-bottom:12px; }
+        .tabbar button { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:6px 6px 0 0; padding:6px 10px; cursor:pointer; }
+        .tabbar button.active { background:#fff; border-bottom-color:#fff; }
+        .conv-row { display:grid; grid-template-columns: 1fr auto auto auto auto; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f0f0; }
+        .conv-title { border:1px solid transparent; padding:4px 6px; border-radius:4px; }
+        .conv-title[contenteditable="true"] { border-color:#ddd; background:#f9fafb; }
+        .search-disabled { opacity:.6; pointer-events:none; }
     </style>
 </head>
 <body>
     <h1>Gemini API Chat</h1>
-    
-    <div>
-        <input type="text" id="messageInput" placeholder="Enter your message..." />
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="flex: 1;">
-                <label for="modelSelect">Model:</label>
-                <select id="modelSelect">
-                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite - Most cost-efficient model supporting high throughput</option>
-                    <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash - Adaptive thinking, cost efficiency</option>
-                    <option value="gemini-2.5-pro">Gemini 2.5 Pro - Enhanced thinking and reasoning, multimodal understanding, advanced coding</option>
-                </select>
-            </div>
+
+    <div class="row">
+        <div style="flex:1;">
+            <label for="modelSelect">Model:</label>
+            <select id="modelSelect">
+                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite - Most cost-efficient model supporting high throughput</option>
+                <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash - Adaptive thinking, cost efficiency</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro - Enhanced thinking and reasoning, multimodal understanding, advanced coding</option>
+            </select>
+        </div>
+        <div class="right">
+            <button id="chatsButton" class="small-btn" style="padding:8px 12px; background:#0ea5e9; color:#fff; border:none; border-radius:4px; cursor:pointer;">💬 Chats</button>
+            <button id="newChatButton" class="small-btn" style="padding:8px 12px; background:#10b981; color:#fff; border:none; border-radius:4px; cursor:pointer;">➕ New Chat</button>
             <button id="settingsButton" onclick="openSettingsModal()" style="padding: 8px 12px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">⚙️ Settings</button>
         </div>
-        
-        <div>
-            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*,application/pdf,text/plain,text/markdown,text/html,text/x-python,application/json,text/csv,text/javascript,text/css,application/xml,text/xml" onchange="previewMedia()" />
-            <button id="clearMedia" onclick="clearMedia()">Clear Media</button>
+    </div>
+
+    <div id="privateHeader" class="header-bar" style="display:none;">
+        <div class="left">
+            <span id="privateBadge" class="badge" style="display:none;">Private</span>
+            <div id="privateToggleWrap" style="display:none; align-items:center; gap:8px;" class="row">
+                <label>Private:</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="privateToggle">
+                    <span class="slider"></span>
+                </label>
+                <span style="font-size:12px; color:#555;">Private chats are not saved unless you click Save</span>
+            </div>
         </div>
-        <div id="mediaInfo"></div>
-        <div id="documentIndicator">
-            <span class="document-icon">📄</span>
-            <span id="documentInfo"></span>
-        </div>
-        <img id="mediaPreview" alt="Media preview" />
-        <video id="videoPreview" controls style="display: none; max-width: 300px;"></video>
-        <audio id="audioPreview" controls style="display: none; max-width: 300px;"></audio>
-        <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
-          <button id="sendButton" onclick="sendMessage()">Send</button>
-          <button id="stopButton" onclick="stopStreaming()" style="display:none; background:#dc3545; color:#fff; border:none; padding:10px 16px; border-radius:4px; cursor:pointer;">Stop</button>
+        <div class="right">
+            <button id="savePrivateButton" class="small-btn" style="display:none; background:#6366f1; color:#fff; border:none; border-radius:4px; padding:8px 12px;">💾 Save this chat</button>
         </div>
     </div>
-    
-    <div id="transcript" style="margin-top:20px; padding:12px; border:1px solid #ddd; border-radius:4px; background:#f9f9f9; max-height:60vh; overflow:auto;"></div>
-    
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal" style="display: none;">
+
+    <div>
+        <input type="text" id="messageInput" placeholder="Enter your message..." />
+        <div style="display:flex; gap:10px; align-items:center;">
+            <div>
+                <input type="file" id="mediaInput" accept="image/*,video/*,audio/*,application/pdf,text/plain,text/markdown,text/html,text/x-python,application/json,text/csv,text/javascript,text/css,application/xml,text/xml">
+                <button id="clearMedia">Clear Media</button>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; margin-left:auto;">
+                <button id="sendButton">Send</button>
+                <button id="stopButton" style="display:none; background:#dc3545; color:#fff; border:none; padding:10px 16px; border-radius:4px; cursor:pointer;">Stop</button>
+            </div>
+        </div>
+        <div id="mediaInfo"></div>
+        <div id="documentIndicator"><span class="document-icon">📄</span><span id="documentInfo"></span></div>
+        <img id="mediaPreview" alt="Media preview" />
+        <video id="videoPreview" controls></video>
+        <audio id="audioPreview" controls></audio>
+    </div>
+
+    <div id="transcript"></div>
+
+    <div id="settingsModal" class="modal" style="display:none;">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Model Configuration</h3>
                 <span class="close" onclick="closeSettingsModal()">&times;</span>
             </div>
-            <div class="modal-body">
-                <!-- Reasoning Configuration -->
-                <div class="config-section">
-                    <h4>Reasoning</h4>
-                    <div class="toggle-container">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="reasoningToggle" checked onchange="toggleReasoningMode()">
-                            <span class="slider"></span>
-                        </label>
-                        <span id="reasoningModeLabel">Dynamic</span>
-                    </div>
-                    <div id="reasoningPresets" style="display: none; margin-top: 10px;">
-                        <div class="preset-buttons">
-                            <button class="preset-btn" data-value="0" onclick="setReasoningPreset(0)">None</button>
-                            <button class="preset-btn" data-value="low" onclick="setReasoningPreset('low')">Low</button>
-                            <button class="preset-btn" data-value="medium" onclick="setReasoningPreset('medium')">Medium</button>
-                            <button class="preset-btn active" data-value="high" onclick="setReasoningPreset('high')">High</button>
-                        </div>
-                        <div id="reasoningInfo" style="font-size: 12px; color: #666; margin-top: 5px;"></div>
-                    </div>
-                </div>
+            <div class="modal-body" id="settingsBody"></div>
+            <div class="modal-footer">
+                <button onclick="resetToDefaults()" style="background:#6c757d; color:#fff; border:none; border-radius:4px; padding:8px 12px;">Reset Defaults</button>
+                <button onclick="closeSettingsModal()" style="background:#007bff; color:#fff; border:none; border-radius:4px; padding:8px 12px;">Done</button>
+            </div>
+        </div>
+    </div>
 
-                <!-- Advanced Parameters -->
-                <div class="config-section">
-                    <h4>Sampling Parameters</h4>
-                    
-                    <div class="param-row">
-                        <label for="temperatureSlider">Temperature:</label>
-                        <div class="slider-container">
-                            <input type="range" id="temperatureSlider" min="0" max="2" step="0.1" value="1.0">
-                            <span id="temperatureValue">1.0</span>
-                        </div>
-                        <div class="param-help">Controls randomness (0.0 = deterministic, 2.0 = very random)</div>
-                    </div>
-
-                    <div class="param-row">
-                        <label for="topPSlider">Top-P:</label>
-                        <div class="slider-container">
-                            <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.95">
-                            <span id="topPValue">0.95</span>
-                        </div>
-                        <div class="param-help">Nucleus sampling threshold (0.0-1.0)</div>
-                    </div>
-
-                    <div class="param-row">
-                        <label for="topKSlider">Top-K:</label>
-                        <div class="slider-container">
-                            <input type="range" id="topKSlider" min="1" max="40" step="1" value="40">
-                            <span id="topKValue">40</span>
-                        </div>
-                        <div class="param-help">Top-K sampling limit (1-40)</div>
-                    </div>
-
-                    <div class="param-row">
-                        <label for="seedInput">Seed:</label>
-                        <input type="number" id="seedInput" placeholder="Random" style="width: 100px;">
-                        <div class="param-help">Random seed for reproducible outputs</div>
-                    </div>
-                </div>
-
-                <div class="config-section">
-                    <h4>Penalty Parameters</h4>
-                    
-                    <div class="param-row">
-                        <label for="presencePenaltySlider">Presence Penalty:</label>
-                        <div class="slider-container">
-                            <input type="range" id="presencePenaltySlider" min="-2" max="2" step="0.1" value="0">
-                            <span id="presencePenaltyValue">0.0</span>
-                        </div>
-                        <div class="param-help">Penalize new tokens based on presence (-2.0 to 2.0)</div>
-                    </div>
-
-                    <div class="param-row">
-                        <label for="frequencyPenaltySlider">Frequency Penalty:</label>
-                        <div class="slider-container">
-                            <input type="range" id="frequencyPenaltySlider" min="-2" max="2" step="0.1" value="0">
-                            <span id="frequencyPenaltyValue">0.0</span>
-                        </div>
-                        <div class="param-help">Penalize tokens based on frequency (-2.0 to 2.0)</div>
-                    </div>
-                </div>
-
-                <div class="config-section">
-                    <h4>Custom Instructions</h4>
-                    
-                    <div class="param-row">
-                        <label for="personalityPreset">Personality Preset:</label>
-                        <select id="personalityPreset" style="width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px;" onchange="handlePersonalityChange()">
-                            <option value="">Default Assistant</option>
-                            <option value="helpful">Helpful Assistant</option>
-                            <option value="code_reviewer">Code Reviewer</option>
-                            <option value="creative_writer">Creative Writer</option>
-                            <option value="custom">Custom Instructions</option>
-                        </select>
-                        <div class="param-help">Choose a personality preset or use custom instructions</div>
-                    </div>
-                    
-                    <div class="param-row" id="customInstructionsRow" style="display: none;">
-                        <label for="customInstructions">Custom Instructions:</label>
-                        <textarea id="customInstructions" placeholder="Enter custom instructions to add to the system prompt..." style="width: 100%; height: 100px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
-                        <div class="param-help">These instructions will be added to the system prompt</div>
-                    </div>
-                </div>
-
-                <div class="config-section">
-                    <h4>Output Parameters</h4>
-                    
-                    <div class="param-row">
-                        <label for="mediaResolution">Media Resolution:</label>
-                        <select id="mediaResolution" style="width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px;">
-                            <option value="">Default</option>
-                            <option value="MEDIA_RESOLUTION_LOW">Low (64 tokens)</option>
-                            <option value="MEDIA_RESOLUTION_MEDIUM">Medium (256 tokens)</option>
-                            <option value="MEDIA_RESOLUTION_HIGH">High (256 tokens, zoomed)</option>
-                        </select>
-                    </div>
-
-                    <div class="param-row">
-                        <label>
-                            <input type="checkbox" id="responseLogprobs"> Response Log Probabilities
-                        </label>
-                        <div class="param-help">Include log probabilities in response</div>
-                    </div>
-
-                    <div class="param-row" id="logprobsRow" style="display: none;">
-                        <label for="logprobsInput">Log Probs Count:</label>
-                        <input type="number" id="logprobsInput" min="1" max="5" value="1" style="width: 80px;">
-                        <div class="param-help">Number of log probabilities to return (1-5)</div>
-                    </div>
+    <div id="chatsModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Chats</h3>
+                <div class="right">
+                    <button id="modalNewChatBtn" class="small-btn" style="background:#10b981; color:#fff; border:none; border-radius:4px;">➕ New Chat</button>
+                    <span class="close" onclick="closeChatsModal()">&times;</span>
                 </div>
             </div>
+            <div class="modal-body">
+                <div class="row" style="margin-bottom:10px;">
+                    <input id="chatSearch" class="search-disabled" type="text" placeholder="Search (coming soon)" disabled style="flex:1; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                </div>
+                <div class="tabbar">
+                    <button id="tabChatsBtn" class="active">Chats</button>
+                    <button id="tabTrashBtn">Trash</button>
+                </div>
+                <div id="chatsList"></div>
+                <div id="trashList" style="display:none;"></div>
+            </div>
             <div class="modal-footer">
-                <button onclick="resetToDefaults()" style="background: #6c757d;">Reset Defaults</button>
-                <button onclick="closeSettingsModal()" style="background: #007bff;">Done</button>
+                <button onclick="closeChatsModal()" style="background:#007bff; color:#fff; border:none; border-radius:4px; padding:8px 12px;">Close</button>
             </div>
         </div>
     </div>
 
     <script>
-        let accumulatedText = '';
         let selectedMedia = null;
-        
-        let footnoteCounter = 0;
-        let footnotes = [];
-        
-        // Enhanced configuration state
+        let currentController = null;
+
         const modelRanges = {
             'gemini-2.5-pro': { min: 128, max: 32768, default: -1, canDisable: false },
             'gemini-2.5-flash': { min: 0, max: 24576, default: -1, canDisable: true },
             'gemini-2.5-flash-lite': { min: 512, max: 24576, default: 0, canDisable: true }
         };
-
         let currentReasoningMode = 'dynamic';
         let currentReasoningPreset = 'high';
 
-        // Calculate preset values for each model
-        function getPresetValues(modelKey) {
-            const range = modelRanges[modelKey];
-            if (!range) return {};
-            
-            return {
-                none: 0,
-                low: Math.floor(range.max * 0.25),
-                medium: Math.floor(range.max * 0.5),
-                high: range.max
-            };
-        }
-
-        // Modal functions
-        function openSettingsModal() {
-            document.getElementById('settingsModal').style.display = 'block';
-            updateReasoningUI();
-        }
-
-        function closeSettingsModal() {
-            document.getElementById('settingsModal').style.display = 'none';
-        }
-
-        // Reasoning toggle functions
-        function toggleReasoningMode() {
-            const toggle = document.getElementById('reasoningToggle');
-            const presetsDiv = document.getElementById('reasoningPresets');
-            const modeLabel = document.getElementById('reasoningModeLabel');
-            
-            if (toggle.checked) {
-                currentReasoningMode = 'dynamic';
-                modeLabel.textContent = 'Dynamic';
-                presetsDiv.style.display = 'none';
-            } else {
-                currentReasoningMode = 'controlled';
-                modeLabel.textContent = 'Controlled';
-                presetsDiv.style.display = 'block';
-                updateReasoningUI();
-            }
-        }
-
-        function setReasoningPreset(preset) {
-            currentReasoningPreset = preset;
-            updateReasoningUI();
-            
-            // Update active button
-            document.querySelectorAll('.preset-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`[data-value="${preset}"]`).classList.add('active');
-        }
-
-        function updateReasoningUI() {
-            const modelSelect = document.getElementById('modelSelect');
-            const selectedModel = modelSelect.value;
-            const range = modelRanges[selectedModel];
-            const presets = getPresetValues(selectedModel);
-            const reasoningInfo = document.getElementById('reasoningInfo');
-            
-            if (!range) return;
-            
-            // Update preset button states
-            const noneBtn = document.querySelector('[data-value="0"]');
-            if (range.canDisable) {
-                noneBtn.disabled = false;
-                noneBtn.textContent = 'None';
-            } else {
-                noneBtn.disabled = true;
-                noneBtn.textContent = 'None (N/A)';
-                if (currentReasoningPreset === 'none') {
-                    currentReasoningPreset = 'low';
-                    setReasoningPreset('low');
-                }
-            }
-            
-            // Update info text
-            if (currentReasoningMode === 'controlled') {
-                const currentValue = presets[currentReasoningPreset] || presets.high;
-                reasoningInfo.textContent = `${currentValue} tokens (Range: ${range.min}-${range.max})`;
-            }
-        }
-
-        // Parameter update functions
-        function updateSliderDisplay(sliderId, valueId, precision = 1) {
-            const slider = document.getElementById(sliderId);
-            const valueSpan = document.getElementById(valueId);
-            valueSpan.textContent = parseFloat(slider.value).toFixed(precision);
-        }
-
-        function toggleLogprobs() {
-            const checkbox = document.getElementById('responseLogprobs');
-            const logprobsRow = document.getElementById('logprobsRow');
-            logprobsRow.style.display = checkbox.checked ? 'block' : 'none';
-        }
-
-        function resetToDefaults() {
-            // Reset all controls to default values
-            document.getElementById('reasoningToggle').checked = true;
-            document.getElementById('temperatureSlider').value = 1.0;
-            document.getElementById('topPSlider').value = 0.95;
-            document.getElementById('topKSlider').value = 40;
-            document.getElementById('seedInput').value = '';
-            document.getElementById('presencePenaltySlider').value = 0;
-            document.getElementById('frequencyPenaltySlider').value = 0;
-            document.getElementById('mediaResolution').value = '';
-            document.getElementById('responseLogprobs').checked = false;
-            document.getElementById('logprobsInput').value = 1;
-            document.getElementById('personalityPreset').value = '';
-            document.getElementById('customInstructions').value = '';
-            
-            currentReasoningMode = 'dynamic';
-            currentReasoningPreset = 'high';
-            
-            toggleReasoningMode();
-            updateAllDisplays();
-            handlePersonalityChange();
-        }
-
-        function updateAllDisplays() {
-            updateSliderDisplay('temperatureSlider', 'temperatureValue', 1);
-            updateSliderDisplay('topPSlider', 'topPValue', 2);
-            updateSliderDisplay('topKSlider', 'topKValue', 0);
-            updateSliderDisplay('presencePenaltySlider', 'presencePenaltyValue', 1);
-            updateSliderDisplay('frequencyPenaltySlider', 'frequencyPenaltyValue', 1);
-            toggleLogprobs();
-        }
-        
-        // Event listeners for configuration controls
-        document.addEventListener('DOMContentLoaded', function() {
-            const modelSelect = document.getElementById('modelSelect');
-            
-            // Model change handler
-            modelSelect.addEventListener('change', updateReasoningUI);
-            
-            // Slider event listeners
-            document.getElementById('temperatureSlider').addEventListener('input', () => updateSliderDisplay('temperatureSlider', 'temperatureValue', 1));
-            document.getElementById('topPSlider').addEventListener('input', () => updateSliderDisplay('topPSlider', 'topPValue', 2));
-            document.getElementById('topKSlider').addEventListener('input', () => updateSliderDisplay('topKSlider', 'topKValue', 0));
-            document.getElementById('presencePenaltySlider').addEventListener('input', () => updateSliderDisplay('presencePenaltySlider', 'presencePenaltyValue', 1));
-            document.getElementById('frequencyPenaltySlider').addEventListener('input', () => updateSliderDisplay('frequencyPenaltySlider', 'frequencyPenaltyValue', 1));
-            document.getElementById('responseLogprobs').addEventListener('change', toggleLogprobs);
-            
-            // Initialize displays
-            updateReasoningUI();
-            updateAllDisplays();
-            loadCustomInstructions();
-            
-            // Close modal when clicking outside
-            window.addEventListener('click', function(event) {
-                const modal = document.getElementById('settingsModal');
-                if (event.target === modal) {
-                    closeSettingsModal();
-                }
-            });
-        });
-        
-        // Enhanced function to handle all custom markdown syntax
-        function parseCustomMarkdown(text) {
-            // Reset footnotes for each parse
-            footnoteCounter = 0;
-            footnotes = [];
-            
-            
-            // 2. Handle spoiler tags ||text||
-            text = text.replace(/\|\|(.*?)\|\|/g, '<span class="spoiler" onclick="this.classList.add(\'revealed\');">$1</span>');
-            
-            // 3. Handle keyboard shortcuts [[key]]
-            text = text.replace(/\[\[(.*?)\]\]/g, '<kbd class="kbd">$1</kbd>');
-            
-            // 4. Handle highlight syntax ==text==
-            text = text.replace(/==(.*?)==/g, '<mark>$1</mark>');
-            
-            // 5. Handle footnotes [^1]
-            text = text.replace(/\[\^(\w+)\](?!:)/g, (match, id) => {
-                footnoteCounter++;
-                return `<a href="#fn${footnoteCounter}" class="footnote-ref" id="fnref${footnoteCounter}">${footnoteCounter}</a>`;
-            });
-            
-            // 6. Handle footnote definitions [^1]: content
-            text = text.replace(/\[\^(\w+)\]:\s*(.+)/g, (match, id, content) => {
-                footnotes.push({ id, content });
-                return ''; // Remove from main content
-            });
-            
-            // 7. Handle callout blocks
-            text = text.replace(/^>\s*\[!(NOTE|TIP|WARNING|DANGER|INFO)\]\s*(.*)$/gm, (match, type, title) => {
-                const typeClass = type.toLowerCase();
-                const icons = {
-                    'note': 'ℹ️',
-                    'tip': '💡',
-                    'warning': '⚠️',
-                    'danger': '🚨',
-                    'info': 'ℹ️'
-                };
-                return `<div class="callout callout-${typeClass}">
-                    <div class="callout-title">
-                        <span class="callout-icon">${icons[typeClass] || 'ℹ️'}</span>
-                        ${title || type}
-                    </div>`;
-            });
-            
-            // Handle callout content continuation (only for lines that follow callouts)
-            let inCallout = false;
-            text = text.split('\n').map(line => {
-                if (line.match(/^>\s*\[!(NOTE|TIP|WARNING|DANGER|INFO)\]/)) {
-                    inCallout = true;
-                    return line;
-                } else if (line.match(/^>(?!\s*\[!)/)) {
-                    if (inCallout) {
-                        return line.replace(/^>\s*(.+)/, '$1') + '\n</div>';
-                    } else {
-                        return line; // Leave regular blockquotes alone
-                    }
-                } else if (line.trim() === '') {
-                    return line;
-                } else {
-                    inCallout = false;
-                    return line;
-                }
-            }).join('\n');
-            
-            // 8. Handle collapsible sections <details>Title</details>
-            text = text.replace(/<details>([^<]+)<\/details>/g, '<details><summary>$1</summary><div class="content">');
-            text = text.replace(/<\/details>/g, '</div></details>');
-            
-            // 9. Parse with marked.js
-            let html = marked.parse(text);
-            
-            
-            // 10. Post-process for task lists
-            html = html.replace(/<ul>/g, '<ul class="task-list">');
-            html = html.replace(/<li>\s*\[([x ])\]\s*(.*?)<\/li>/gi, (match, checked, content) => {
-                const isChecked = checked.toLowerCase() === 'x';
-                const checkedClass = isChecked ? ' checked' : '';
-                const checkedAttr = isChecked ? ' checked disabled' : '';
-                return `<li class="task-list-item${checkedClass}">
-                    <input type="checkbox"${checkedAttr}>
-                    <span>${content}</span>
-                </li>`;
-            });
-            
-            // 11. Add footnotes section if any exist
-            if (footnotes.length > 0) {
-                html += '<div class="footnotes"><h3>Footnotes</h3>';
-                footnotes.forEach((fn, index) => {
-                    html += `<div class="footnote-item" id="fn${index + 1}">
-                        <strong>${index + 1}.</strong> ${fn.content}
-                        <a href="#fnref${index + 1}" class="footnote-back">↩</a>
-                    </div>`;
-                });
-                html += '</div>';
-            }
-            
-            return html;
-        }
-        
-        // Function to render LaTeX math
-        function renderMath(element) {
-            if (window.renderMathInElement) {
-                renderMathInElement(element, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false},
-                        {left: '\\(', right: '\\)', display: false},
-                        {left: '\\[', right: '\\]', display: true}
-                    ]
-                });
-            }
-        }
-        
-
-        
-        // Function to highlight code
-        function highlightCode(element) {
-            if (window.Prism) {
-                Prism.highlightAllUnder(element);
-            }
-        }
-        
-        function previewMedia() {
-            const input = document.getElementById('mediaInput');
-            const imgPreview = document.getElementById('mediaPreview');
-            const videoPreview = document.getElementById('videoPreview');
-            const audioPreview = document.getElementById('audioPreview');
-            const mediaInfo = document.getElementById('mediaInfo');
-            const clearBtn = document.getElementById('clearMedia');
-            
-            // Hide all previews first
-            imgPreview.style.display = 'none';
-            videoPreview.style.display = 'none';
-            audioPreview.style.display = 'none';
-            mediaInfo.style.display = 'none';
-            
-            if (input.files && input.files[0]) {
-                const file = input.files[0];
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    clearBtn.style.display = 'inline-block';
-                    selectedMedia = file;
-                    
-                    // Show file info
-                    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-                    mediaInfo.innerHTML = `<strong>${file.name}</strong><br>Type: ${file.type}<br>Size: ${fileSizeMB} MB`;
-                    mediaInfo.style.display = 'block';
-                    
-                    // Show appropriate preview based on file type
-                    if (file.type.startsWith('image/')) {
-                        imgPreview.src = e.target.result;
-                        imgPreview.style.display = 'block';
-                    } else if (file.type.startsWith('video/')) {
-                        videoPreview.src = e.target.result;
-                        videoPreview.style.display = 'block';
-                    } else if (file.type.startsWith('audio/')) {
-                        audioPreview.src = e.target.result;
-                        audioPreview.style.display = 'block';
-                    } else {
-                        const documentIndicator = document.getElementById('documentIndicator');
-                        const documentInfo = document.getElementById('documentInfo');
-                        documentInfo.textContent = `Document ready for upload: ${file.name}`;
-                        documentIndicator.style.display = 'block';
-                        mediaInfo.innerHTML += '<br><em>Document ready for upload</em>';
-                    }
-                };
-                
-                reader.readAsDataURL(file);
-            }
-        }
-        
-        function clearMedia() {
-            document.getElementById('mediaInput').value = '';
-            document.getElementById('mediaPreview').style.display = 'none';
-            document.getElementById('videoPreview').style.display = 'none';
-            document.getElementById('audioPreview').style.display = 'none';
-            document.getElementById('mediaInfo').style.display = 'none';
-            document.getElementById('clearMedia').style.display = 'none';
-            const docIndicator = document.getElementById('documentIndicator');
-            if (docIndicator) docIndicator.style.display = 'none';
-            selectedMedia = null;
-        }
-        
-        async function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const button = document.getElementById('sendButton');
-            const responseDiv = document.getElementById('response');
-            
-            const message = input.value.trim();
-            if (!message && !selectedMedia) return;
-            
-            // Disable button and show loading
-            button.disabled = true;
-            responseDiv.textContent = 'Thinking...';
-            responseDiv.className = 'loading';
-            accumulatedText = '';
-            
-            try {
-                // Prepare the request body with enhanced configuration
-                const config = {
-                    temperature: parseFloat(document.getElementById('temperatureSlider').value),
-                    topP: parseFloat(document.getElementById('topPSlider').value),
-                    topK: parseInt(document.getElementById('topKSlider').value),
-                    presencePenalty: parseFloat(document.getElementById('presencePenaltySlider').value),
-                    frequencyPenalty: parseFloat(document.getElementById('frequencyPenaltySlider').value),
-                    mediaResolution: document.getElementById('mediaResolution').value || undefined
-                };
-
-                // Add reasoning configuration
-                if (currentReasoningMode === 'dynamic') {
-                    config.thinkingBudget = -1;
-                } else {
-                    const modelKey = document.getElementById('modelSelect').value;
-                    const presets = getPresetValues(modelKey);
-                    config.thinkingBudget = presets[currentReasoningPreset] || presets.high;
-                }
-
-                // Add seed if specified
-                const seedValue = document.getElementById('seedInput').value;
-                if (seedValue) {
-                    config.seed = parseInt(seedValue);
-                }
-
-                // Add logprobs configuration
-                if (document.getElementById('responseLogprobs').checked) {
-                    config.responseLogprobs = true;
-                    config.logprobs = parseInt(document.getElementById('logprobsInput').value);
-                }
-
-                // Add custom instructions configuration
-                const personalityPreset = document.getElementById('personalityPreset').value;
-                const customInstructions = document.getElementById('customInstructions').value.trim();
-                
-                if (personalityPreset === 'custom' && customInstructions) {
-                    config.personalityPreset = 'custom';
-                    config.customInstructions = customInstructions;
-                } else if (personalityPreset && personalityPreset !== '' && personalityPreset !== 'custom') {
-                    config.personalityPreset = personalityPreset;
-                }
-
-                const requestBody = { 
-                    message: message || '',
-                    model: document.getElementById('modelSelect').value,
-                    config: config
-                };
-                
-                // If there's media, convert it to base64
-                if (selectedMedia) {
-                    const mediaData = await new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                            // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
-                            const base64 = reader.result.split(',')[1];
-                            resolve({
-                                data: base64,
-                                mimeType: selectedMedia.type
-                            });
-                        };
-                        reader.readAsDataURL(selectedMedia);
-                    });
-                    requestBody.media = mediaData;
-                }
-                
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                
-                responseDiv.className = '';
-                let mainContent = '';
-                
-                while (true) {
-                    const { done, value } = await reader.read();
-                    
-                    if (done) break;
-                    
-                    const chunk = decoder.decode(value);
-                    
-                    // Gemini streams plain text, not JSON with thinking content
-                    // For now, treat all content as main content
-                    mainContent += chunk;
-                    
-                    // Render the content
-                    if (mainContent.trim()) {
-                        responseDiv.innerHTML = parseCustomMarkdown(mainContent);
-                    }
-                    
-                    // Apply post-processing
-                    highlightCode(responseDiv);
-                    renderMath(responseDiv);
-                    addCopyButtons();
-                }
-                
-            } catch (error) {
-                responseDiv.textContent = 'Error: ' + error.message;
-                responseDiv.className = '';
-            } finally {
-                button.disabled = false;
-                // Clear the input and media after sending
-                input.value = '';
-                if (selectedMedia) {
-                    clearMedia();
-                }
-            }
-        }
-        
-        // Custom Instructions Functions
-        function handlePersonalityChange() {
-            const preset = document.getElementById('personalityPreset').value;
-            const customRow = document.getElementById('customInstructionsRow');
-            
-            if (preset === 'custom') {
-                customRow.style.display = 'block';
-            } else {
-                customRow.style.display = 'none';
-            }
-            
-            saveCustomInstructions();
-        }
-
-        function saveCustomInstructions() {
-            const preset = document.getElementById('personalityPreset').value;
-            const custom = document.getElementById('customInstructions').value;
-            
-            localStorage.setItem('personalityPreset', preset);
-            localStorage.setItem('customInstructions', custom);
-        }
-
-        function loadCustomInstructions() {
-            const savedPreset = localStorage.getItem('personalityPreset');
-            const savedCustom = localStorage.getItem('customInstructions');
-            
-            if (savedPreset) {
-                document.getElementById('personalityPreset').value = savedPreset;
-            }
-            if (savedCustom) {
-                document.getElementById('customInstructions').value = savedCustom;
-            }
-            
-            handlePersonalityChange();
-        }
-
-
-        // Copy Button Functions
-        function addCopyButtons() {
-            const responseDiv = document.getElementById('response');
-            
-            // Add copy button to response container if it doesn't exist
-            if (!responseDiv.querySelector('.copy-response-btn')) {
-                const copyBtn = document.createElement('button');
-                copyBtn.className = 'copy-button copy-response-btn';
-                copyBtn.textContent = '📋';
-                copyBtn.onclick = () => copyToClipboard(responseDiv.textContent, copyBtn);
-                responseDiv.appendChild(copyBtn);
-            }
-            
-            // Add copy buttons to pre code blocks
-            responseDiv.querySelectorAll('pre').forEach(pre => {
-                if (!pre.querySelector('.copy-code-btn')) {
-                    const copyBtn = document.createElement('button');
-                    copyBtn.className = 'copy-button copy-code-btn';
-                    copyBtn.textContent = '📋';
-                    copyBtn.onclick = () => {
-                        const codeElement = pre.querySelector('code');
-                        const text = codeElement ? codeElement.textContent : pre.textContent;
-                        copyToClipboard(text, copyBtn);
-                    };
-                    pre.style.position = 'relative';
-                    pre.appendChild(copyBtn);
-                }
-            });
-            
-        }
-
-        function copyToClipboard(text, button) {
-            navigator.clipboard.writeText(text).then(() => {
-                const originalText = button.textContent;
-                button.textContent = '✓';
-                button.classList.add('copied');
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.classList.remove('copied');
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy text: ', err);
-                const originalText = button.textContent;
-                button.textContent = '✗';
-                setTimeout(() => {
-                    button.textContent = originalText;
-                }, 2000);
-            });
-        }
-
-        // Event listeners for custom instructions
-        document.addEventListener('DOMContentLoaded', function() {
-            const customInstructionsTextarea = document.getElementById('customInstructions');
-            if (customInstructionsTextarea) {
-                customInstructionsTextarea.addEventListener('input', saveCustomInstructions);
-            }
-        });
-
-        // ===== Multi-turn + Dexie persistence overrides appended below =====
-        // Dexie DB and data models
         const db = new Dexie('sonata');
         db.version(1).stores({
           conversations: 'id, title, model, systemInstruction, createdAt, updatedAt',
           messages: 'id, conversationId, role, createdAt, editedAt, status'
         });
+        db.version(2).stores({
+          conversations: 'id, updatedAt, deletedAt, pinned',
+          messages: 'id, conversationId, role, createdAt, editedAt, status'
+        }).upgrade(tx => tx.table('conversations').toCollection().modify(c => { c.pinned = false; c.private = false; c.deletedAt = null; }));
 
-        let activeConversationId = null;
-        let currentController = null;
+        const appState = {
+          activeConversationId: null,
+          ephemeral: { active: false, conversation: null, messages: [] },
+          ui: { editing: {}, newChatPending: false, chatsTab: 'chats' }
+        };
 
         function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
-        async function ensureActiveConversation() {
-          if (activeConversationId) return activeConversationId;
-          const saved = localStorage.getItem('sonata.activeConversationId');
-          if (saved && await db.conversations.get(saved)) { activeConversationId = saved; return activeConversationId; }
-          return null;
-        }
-
-        async function createConversationIfNeeded() {
-          if (await ensureActiveConversation()) return activeConversationId;
-          const id = uid();
-          const model = document.getElementById('modelSelect').value;
-          const systemInstruction = getSystemInstructionString();
-          const ts = Date.now();
-          await db.conversations.put({ id, title: '', model, systemInstruction, createdAt: ts, updatedAt: ts, messageIds: [] });
-          activeConversationId = id;
-          localStorage.setItem('sonata.activeConversationId', id);
-          return id;
-        }
-
         function escapeHTML(str) { const div = document.createElement('div'); div.innerText = str; return div.innerHTML; }
+
+        function getPresetValues(modelKey) {
+          const range = modelRanges[modelKey];
+          if (!range) return {};
+          return { none: 0, low: Math.floor(range.max * 0.25), medium: Math.floor(range.max * 0.5), high: range.max };
+        }
 
         function getCurrentConfig() {
           const config = {
-            temperature: parseFloat(document.getElementById('temperatureSlider').value),
-            topP: parseFloat(document.getElementById('topPSlider').value),
-            topK: parseInt(document.getElementById('topKSlider').value),
-            presencePenalty: parseFloat(document.getElementById('presencePenaltySlider').value),
-            frequencyPenalty: parseFloat(document.getElementById('frequencyPenaltySlider').value),
-            mediaResolution: document.getElementById('mediaResolution').value || undefined
+            temperature: parseFloat(document.getElementById('temperatureSlider')?.value || 1.0),
+            topP: parseFloat(document.getElementById('topPSlider')?.value || 0.95),
+            topK: parseInt(document.getElementById('topKSlider')?.value || 40),
+            presencePenalty: parseFloat(document.getElementById('presencePenaltySlider')?.value || 0),
+            frequencyPenalty: parseFloat(document.getElementById('frequencyPenaltySlider')?.value || 0),
+            mediaResolution: document.getElementById('mediaResolution')?.value || undefined
           };
-          if (currentReasoningMode === 'dynamic') config.thinkingBudget = -1;
-          else {
-            const modelKey = document.getElementById('modelSelect').value;
-            const presets = getPresetValues(modelKey);
-            config.thinkingBudget = presets[currentReasoningPreset] || presets.high;
+          if (currentReasoningMode === 'dynamic') config.thinkingBudget = -1; else {
+            const modelKey = document.getElementById('modelSelect').value; const presets = getPresetValues(modelKey); config.thinkingBudget = presets[currentReasoningPreset] || presets.high;
           }
-          const seedValue = document.getElementById('seedInput').value;
-          if (seedValue) config.seed = parseInt(seedValue);
-          if (document.getElementById('responseLogprobs').checked) {
-            config.responseLogprobs = true;
-            config.logprobs = parseInt(document.getElementById('logprobsInput').value);
-          }
-          const personalityPreset = document.getElementById('personalityPreset').value;
-          const customInstructions = document.getElementById('customInstructions').value.trim();
-          if (personalityPreset === 'custom' && customInstructions) { config.personalityPreset = 'custom'; config.customInstructions = customInstructions; }
+          const seedValue = document.getElementById('seedInput')?.value; if (seedValue) config.seed = parseInt(seedValue);
+          if (document.getElementById('responseLogprobs')?.checked) { config.responseLogprobs = true; config.logprobs = parseInt(document.getElementById('logprobsInput').value); }
+          const personalityPreset = document.getElementById('personalityPreset')?.value; const custom = document.getElementById('customInstructions')?.value?.trim();
+          if (personalityPreset === 'custom' && custom) { config.personalityPreset = 'custom'; config.customInstructions = custom; }
           else if (personalityPreset && personalityPreset !== '' && personalityPreset !== 'custom') { config.personalityPreset = personalityPreset; }
           return config;
         }
 
         function getSystemInstructionString() {
-          const preset = document.getElementById('personalityPreset').value;
-          const custom = document.getElementById('customInstructions').value.trim();
-          if (preset === 'custom' && custom) return custom;
-          return '';
+          const preset = document.getElementById('personalityPreset')?.value; const custom = document.getElementById('customInstructions')?.value?.trim();
+          if (preset === 'custom' && custom) return custom; return '';
         }
 
-        async function listMessages(conversationId) {
-          return db.messages.where('conversationId').equals(conversationId).sortBy('createdAt');
-        }
-
-        function renderTranscriptUI(messages) {
-          const el = document.getElementById('transcript');
-          el.innerHTML = '';
-          messages.forEach(msg => {
-            const bubble = document.createElement('div');
-            bubble.style.padding = '10px';
-            bubble.style.margin = '8px 0';
-            bubble.style.borderRadius = '8px';
-            bubble.style.position = 'relative';
-            if (msg.role === 'user') {
-              bubble.style.background = '#e9f5ff';
-              bubble.style.border = '1px solid #b6e0ff';
-            } else {
-              bubble.style.background = '#fff';
-              bubble.style.border = '1px solid #eee';
+        async function startupPurge() {
+          const cutoff = Date.now() - 30*24*60*60*1000;
+          await db.transaction('rw', db.conversations, db.messages, async () => {
+            const old = await db.conversations.where('deletedAt').belowOrEqual(cutoff).toArray();
+            for (const conv of old) {
+              await db.messages.where('conversationId').equals(conv.id).delete();
+              await db.conversations.delete(conv.id);
             }
-            const content = document.createElement('div');
-            const textPart = (msg.parts && msg.parts.find(p => p.text)) ? msg.parts.find(p => p.text).text : '';
-            if (msg.role === 'user') {
-              content.innerHTML = `<div>${escapeHTML(textPart || '')}</div>`;
-              if (msg.parts) {
-                msg.parts.forEach(p => {
-                  if (p.inlineData) {
-                    const att = document.createElement('div');
-                    att.style.fontSize = '12px';
-                    att.style.color = '#555';
-                    att.textContent = `Attachment: ${p.inlineData.mimeType}`;
-                    content.appendChild(att);
-                  }
-                });
-              }
-            } else {
-              const html = parseCustomMarkdown(textPart || '');
-              content.innerHTML = html;
-              highlightCode(content);
-              renderMath(content);
-            }
-            bubble.appendChild(content);
-
-            const controls = document.createElement('div');
-            controls.style.position = 'absolute';
-            controls.style.top = '6px';
-            controls.style.right = '6px';
-            controls.style.display = 'flex';
-            controls.style.gap = '6px';
-
-            const copyBtn = document.createElement('button');
-            copyBtn.textContent = 'Copy';
-            copyBtn.style.fontSize = '12px';
-            copyBtn.onclick = () => {
-              const t = msg.parts?.map(p => p.text || '').join('\n') || '';
-              navigator.clipboard.writeText(t);
-            };
-            controls.appendChild(copyBtn);
-
-            if (msg.role === 'user') {
-              const editBtn = document.createElement('button');
-              editBtn.textContent = 'Edit';
-              editBtn.style.fontSize = '12px';
-              editBtn.onclick = () => openEditMessage(msg.id);
-              controls.appendChild(editBtn);
-            }
-
-            bubble.appendChild(controls);
-            el.appendChild(bubble);
           });
-          el.scrollTop = el.scrollHeight;
         }
 
-        async function refreshTranscript() {
-          const cid = await ensureActiveConversation();
-          if (!cid) {
-            document.getElementById('transcript').innerHTML = 'Start a conversation...';
-            return;
+        async function ensureActiveConversation() {
+          if (appState.ephemeral.active && appState.ephemeral.conversation) return appState.ephemeral.conversation.id;
+          if (appState.activeConversationId) return appState.activeConversationId;
+          const saved = localStorage.getItem('sonata.activeConversationId');
+          if (saved) {
+            const conv = await db.conversations.get(saved);
+            if (conv && !conv.deletedAt) { appState.activeConversationId = saved; return saved; }
+            localStorage.removeItem('sonata.activeConversationId');
           }
+          return null;
+        }
+
+        const storage = {
+          isPrivateActive() { return appState.ephemeral.active; },
+          getActiveConversationId() { return appState.ephemeral.active && appState.ephemeral.conversation ? appState.ephemeral.conversation.id : appState.activeConversationId; },
+          async getConversation(id) {
+            if (this.isPrivateActive() && appState.ephemeral.conversation?.id === id) return appState.ephemeral.conversation;
+            return db.conversations.get(id);
+          },
+          async putConversation(conv) {
+            if (this.isPrivateActive()) { appState.ephemeral.conversation = conv; return; }
+            await db.conversations.put(conv);
+          },
+          async updateConversation(id, patch) {
+            if (this.isPrivateActive() && appState.ephemeral.conversation?.id === id) { Object.assign(appState.ephemeral.conversation, patch); return; }
+            await db.conversations.update(id, patch);
+          },
+          async listMessages(conversationId) {
+            if (this.isPrivateActive() && appState.ephemeral.conversation?.id === conversationId) {
+              return [...appState.ephemeral.messages].sort((a,b)=>a.createdAt-b.createdAt);
+            }
+            return db.messages.where('conversationId').equals(conversationId).sortBy('createdAt');
+          },
+          async getMessage(id) {
+            if (this.isPrivateActive()) return appState.ephemeral.messages.find(m=>m.id===id) || null;
+            return db.messages.get(id);
+          },
+          async addMessage(message) {
+            if (this.isPrivateActive() && appState.ephemeral.conversation?.id === message.conversationId) {
+              appState.ephemeral.messages.push(message);
+              appState.ephemeral.conversation.updatedAt = Date.now();
+              return;
+            }
+            await db.messages.put(message);
+            await db.conversations.update(message.conversationId, { updatedAt: Date.now() });
+          },
+          async updateMessage(id, patch) {
+            if (this.isPrivateActive()) {
+              const idx = appState.ephemeral.messages.findIndex(m=>m.id===id);
+              if (idx!==-1) { Object.assign(appState.ephemeral.messages[idx], patch); }
+              return;
+            }
+            const m = await db.messages.get(id); if (!m) return; Object.assign(m, patch); await db.messages.put(m);
+          },
+          async deleteMessagesAfter(conversationId, createdAt) {
+            if (this.isPrivateActive() && appState.ephemeral.conversation?.id === conversationId) {
+              appState.ephemeral.messages = appState.ephemeral.messages.filter(m=>m.createdAt <= createdAt);
+              appState.ephemeral.conversation.updatedAt = Date.now();
+              return;
+            }
+            const msgs = await db.messages.where('conversationId').equals(conversationId).toArray();
+            const toDelete = msgs.filter(m=>m.createdAt>createdAt).map(m=>m.id);
+            await db.messages.bulkDelete(toDelete);
+            await db.conversations.update(conversationId, { updatedAt: Date.now() });
+          },
+          async softDeleteConversation(id) {
+            await db.conversations.update(id, { deletedAt: Date.now() });
+          },
+          async restoreConversation(id) {
+            await db.conversations.update(id, { deletedAt: null });
+          },
+          async deleteConversationPermanently(id) {
+            await db.transaction('rw', db.conversations, db.messages, async () => {
+              await db.messages.where('conversationId').equals(id).delete();
+              await db.conversations.delete(id);
+            });
+          },
+          async listConversations() {
+            const all = await db.conversations.where('deletedAt').equals(null).toArray();
+            return all.filter(c=>!c.private).sort((a,b)=> (b.pinned?1:0)-(a.pinned?1:0) || (b.updatedAt - a.updatedAt));
+          },
+          async listTrash() {
+            const all = await db.conversations.where('deletedAt').notEqual(null).toArray();
+            return all.sort((a,b)=> (b.deletedAt||0)-(a.deletedAt||0));
+          }
+        };
+
+        function parseCustomMarkdown(text) {
+          text = text.replace(/\|\|(.*?)\|\|/g, '<span class="spoiler" onclick="this.classList.add(\'revealed\');">$1<\/span>');
+          text = text.replace(/\[\[(.*?)\]\]/g, '<kbd class="kbd">$1<\/kbd>');
+          text = text.replace(/==(.*?)==/g, '<mark>$1<\/mark>');
+          let html = marked.parse(text);
+          return html;
+        }
+        function renderMath(el){ if (window.renderMathInElement) renderMathInElement(el,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}]}); }
+        function highlightCode(el){ if (window.Prism) Prism.highlightAllUnder(el); }
+
+        function fileToInlineData(file) { return new Promise((resolve)=>{ const r=new FileReader(); r.onload=()=>{ const base64=r.result.split(',')[1]; resolve({ mimeType:file.type, data:base64 }); }; r.readAsDataURL(file); }); }
+
+        async function listMessages(conversationId) { return storage.listMessages(conversationId); }
+
+        async function autoTitleIfNeeded(conversationId) {
+          const conv = await storage.getConversation(conversationId); if (!conv || conv.title) return;
+          const msgs = await storage.listMessages(conversationId);
+          const firstUser = msgs.find(m=>m.role==='user');
+          const text = (firstUser?.parts?.find(p=>p.text)?.text || '').replace(/\s+/g,' ').trim().slice(0,80);
+          await storage.updateConversation(conversationId, { title: text });
+        }
+
+        async function buildHistory(conversationId, untilCreatedAt = Infinity) {
+          const msgs = await storage.listMessages(conversationId);
+          const inOrder = msgs.filter(m=>m.createdAt < untilCreatedAt);
+          return inOrder.map(m=>({ role: m.role, parts: m.parts || [] }));
+        }
+
+        function formatTime(ts){ const d=new Date(ts); return d.toLocaleString(); }
+
+        function showPrivateControls(show){ document.getElementById('privateHeader').style.display = show ? 'flex' : 'none'; }
+        function showPrivateBadge(show){ document.getElementById('privateBadge').style.display = show ? 'inline-block' : 'none'; }
+        function showPrivateToggle(show){ document.getElementById('privateToggleWrap').style.display = show ? 'flex' : 'none'; }
+        function showSavePrivate(show){ document.getElementById('savePrivateButton').style.display = show ? 'inline-block' : 'none'; }
+
+        async function refreshTranscript(){
+          const cid = await ensureActiveConversation();
+          const el = document.getElementById('transcript');
+          if (!cid) { el.innerHTML = 'Start a conversation...'; return; }
           const msgs = await listMessages(cid);
           renderTranscriptUI(msgs);
         }
 
-        async function addMessage(message) {
-          await db.messages.put(message);
-          await db.conversations.update(message.conversationId, { updatedAt: Date.now() });
+        function clearMedia(){
+          document.getElementById('mediaInput').value = '';
+          document.getElementById('mediaPreview').style.display = 'none';
+          document.getElementById('videoPreview').style.display = 'none';
+          document.getElementById('audioPreview').style.display = 'none';
+          document.getElementById('mediaInfo').style.display = 'none';
+          document.getElementById('clearMedia').style.display = 'none';
+          const di=document.getElementById('documentIndicator'); if (di) di.style.display='none';
+          selectedMedia = null;
         }
 
-        async function updateMessage(id, patch) {
-          const m = await db.messages.get(id);
-          if (!m) return;
-          Object.assign(m, patch);
-          await db.messages.put(m);
-        }
-
-        async function deleteMessagesAfter(conversationId, createdAt) {
-          const msgs = await listMessages(conversationId);
-          const toDelete = msgs.filter(m => m.createdAt > createdAt).map(m => m.id);
-          await db.messages.bulkDelete(toDelete);
-          await db.conversations.update(conversationId, { updatedAt: Date.now() });
-        }
-
-        async function autoTitleIfNeeded(conversationId, assistantText) {
-          const conv = await db.conversations.get(conversationId);
-          if (!conv || conv.title) return;
-          const sentence = (assistantText || '').split(/[.!?]/)[0].trim().slice(0, 60);
-          await db.conversations.update(conversationId, { title: sentence });
-        }
-
-        async function buildHistory(conversationId, untilCreatedAt = Infinity) {
-          const msgs = await listMessages(conversationId);
-          const inOrder = msgs.filter(m => m.createdAt < untilCreatedAt);
-          return inOrder.map(m => ({ role: m.role, parts: m.parts || [] }));
-        }
-
-        async function fileToInlineData(file) {
-          return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const base64 = reader.result.split(',')[1];
-              resolve({ mimeType: file.type, data: base64 });
+        function previewMedia(){
+          const input=document.getElementById('mediaInput'); const img=document.getElementById('mediaPreview'); const vid=document.getElementById('videoPreview'); const aud=document.getElementById('audioPreview'); const info=document.getElementById('mediaInfo'); const clearBtn=document.getElementById('clearMedia');
+          img.style.display='none'; vid.style.display='none'; aud.style.display='none'; info.style.display='none';
+          if (input.files && input.files[0]){
+            const file=input.files[0]; const reader=new FileReader();
+            reader.onload=(e)=>{ clearBtn.style.display='inline-block'; selectedMedia=file; const sizeMB=(file.size/(1024*1024)).toFixed(2); info.innerHTML=`<strong>${file.name}</strong><br>Type: ${file.type}<br>Size: ${sizeMB} MB`; info.style.display='block';
+              if (file.type.startsWith('image/')){ img.src=e.target.result; img.style.display='block'; }
+              else if (file.type.startsWith('video/')){ vid.src=e.target.result; vid.style.display='block'; }
+              else if (file.type.startsWith('audio/')){ aud.src=e.target.result; aud.style.display='block'; }
+              else { const di=document.getElementById('documentIndicator'); document.getElementById('documentInfo').textContent=`Document ready for upload: ${file.name}`; di.style.display='block'; }
             };
             reader.readAsDataURL(file);
-          });
+          }
         }
 
-        async function sendMessage() {
-          const input = document.getElementById('messageInput');
-          const sendBtn = document.getElementById('sendButton');
-          const stopBtn = document.getElementById('stopButton');
-          const text = input.value.trim();
-          if (!text && !selectedMedia) return;
+        async function createConversationIfNeeded() {
+          if (appState.ephemeral.active) return appState.ephemeral.conversation.id;
+          if (appState.activeConversationId) return appState.activeConversationId;
+          const id = uid(); const model = document.getElementById('modelSelect').value; const systemInstruction = getSystemInstructionString(); const ts=Date.now();
+          await db.conversations.put({ id, title: '', model, systemInstruction, createdAt: ts, updatedAt: ts, pinned:false, private:false, deletedAt:null });
+          appState.activeConversationId = id; localStorage.setItem('sonata.activeConversationId', id); appState.ui.newChatPending = false; refreshPrivateUI();
+          return id;
+        }
 
-          sendBtn.disabled = true;
-          stopBtn.style.display = 'inline-block';
+        function refreshPrivateUI(){
+          if (appState.ephemeral.active){ showPrivateControls(true); showPrivateBadge(true); showPrivateToggle(false); showSavePrivate(appState.ephemeral.messages.length>0); }
+          else if (appState.ui.newChatPending){ showPrivateControls(true); showPrivateBadge(false); showPrivateToggle(true); showSavePrivate(false); }
+          else { showPrivateControls(false); showPrivateBadge(false); showPrivateToggle(false); showSavePrivate(false); }
+        }
+
+        function startNewChat(){
+          appState.ui.newChatPending = true; appState.ephemeral.active = false; appState.ephemeral.conversation = null; appState.ephemeral.messages = [];
+          appState.activeConversationId = null; localStorage.removeItem('sonata.activeConversationId');
+          document.getElementById('messageInput').value=''; clearMedia(); refreshPrivateUI(); document.getElementById('transcript').innerHTML='Start a conversation...';
+        }
+
+        function togglePrivateMode(checked){
+          if (checked){
+            const id = 'priv-'+uid(); const ts=Date.now();
+            appState.ephemeral.active = true;
+            appState.ephemeral.conversation = { id, title:'', model: document.getElementById('modelSelect').value, systemInstruction: getSystemInstructionString(), createdAt: ts, updatedAt: ts, private: true };
+            appState.ephemeral.messages = [];
+          } else {
+            appState.ephemeral.active = false; appState.ephemeral.conversation = null; appState.ephemeral.messages = [];
+          }
+          refreshPrivateUI();
+        }
+
+        async function savePrivateChat(){
+          if (!appState.ephemeral.active) return; const conv = appState.ephemeral.conversation; const msgs = appState.ephemeral.messages;
+          const newId = uid(); const ts=Date.now();
+          await db.transaction('rw', db.conversations, db.messages, async () => {
+            await db.conversations.put({ id:newId, title: conv.title||'', model: conv.model, systemInstruction: conv.systemInstruction, createdAt: conv.createdAt||ts, updatedAt: ts, pinned:false, private:false, deletedAt:null });
+            const toPut = msgs.map(m=>({ ...m, conversationId: newId }));
+            await db.messages.bulkPut(toPut);
+          });
+          appState.ephemeral.active=false; appState.ephemeral.conversation=null; appState.ephemeral.messages=[];
+          appState.activeConversationId = newId; localStorage.setItem('sonata.activeConversationId', newId);
+          await autoTitleIfNeeded(newId); refreshPrivateUI(); await refreshTranscript();
+        }
+
+        function buildUserPartsFromInput(text){ const parts=[]; if (text) parts.push({ text }); return parts; }
+
+        async function sendMessage(options={}){
+          const input = document.getElementById('messageInput'); const sendBtn=document.getElementById('sendButton'); const stopBtn=document.getElementById('stopButton');
+          const retryId = options.retryForMessageId || null;
+
+          if (retryId){
+            const asstMsg = await storage.getMessage(retryId); if (!asstMsg) return;
+            const cid = asstMsg.conversationId; sendBtn.disabled=true; stopBtn.style.display='inline-block';
+            await storage.updateMessage(asstMsg.id, { status:'streaming', editedAt: Date.now(), parts:[{ text:'' }], retryCount: (asstMsg.retryCount||0)+1 }); await refreshTranscript();
+            const model=document.getElementById('modelSelect').value; const config=getCurrentConfig(); const systemInstruction=getSystemInstructionString()||undefined;
+            const msgs = await storage.listMessages(cid); const asstIndex = msgs.findIndex(m=>m.id===asstMsg.id);
+            let triggerUser = null; for (let i=asstIndex-1;i>=0;i--){ if (msgs[i].role==='user'){ triggerUser = msgs[i]; break; } }
+            if (!triggerUser){ await storage.updateMessage(asstMsg.id,{ status:'error' }); sendBtn.disabled=false; stopBtn.style.display='none'; return; }
+            const history = await buildHistory(cid, asstMsg.createdAt);
+            const payload = { model, config, systemInstruction, history, message: { role:'user', parts: triggerUser.parts||[] } };
+            const controller=new AbortController(); currentController=controller;
+            try {
+              const resp = await fetch('/api/chat',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal }); if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              const reader=resp.body.getReader(); const decoder=new TextDecoder(); let buffer='';
+              while(true){ const {done,value}=await reader.read(); if(done) break; const chunk=decoder.decode(value); buffer+=chunk; const sentinelStart=buffer.indexOf('[[SONATA_FINAL]]'); if(sentinelStart!==-1){ const textPart=buffer.slice(0,sentinelStart); await storage.updateMessage(asstMsg.id,{ parts:[{text:textPart}], status:'done' }); await refreshTranscript(); break; } else { await storage.updateMessage(asstMsg.id,{ parts:[{text:buffer}], status:'streaming' }); await refreshTranscript(); } }
+            } catch(e){ await storage.updateMessage(asstMsg.id,{ status:'error' }); }
+            finally { currentController=null; sendBtn.disabled=false; stopBtn.style.display='none'; await refreshTranscript(); }
+            return;
+          }
+
+          const text = input.value.trim(); if (!text && !selectedMedia) return;
+          sendBtn.disabled=true; stopBtn.style.display='inline-block';
+
+          const now = Date.now();
+          if (appState.ephemeral.active){
+            const cid = appState.ephemeral.conversation?.id || (togglePrivateMode(true), appState.ephemeral.conversation.id);
+            const userParts = []; if (text) userParts.push({ text }); if (selectedMedia){ const inlineData = await fileToInlineData(selectedMedia); userParts.push({ inlineData }); }
+            const userMsg = { id: uid(), conversationId: cid, role:'user', parts: userParts, createdAt: now, status:'done' };
+            await storage.addMessage(userMsg);
+            const asstMsg = { id: uid(), conversationId: cid, role:'model', parts:[{text:''}], createdAt: now+1, status:'streaming' };
+            await storage.addMessage(asstMsg); await refreshTranscript();
+            const model=document.getElementById('modelSelect').value; const config=getCurrentConfig(); const systemInstruction=getSystemInstructionString()||undefined; const history=await buildHistory(cid, asstMsg.createdAt); const payload = { model, config, systemInstruction, history, message: { role:'user', parts: userParts } };
+            const controller=new AbortController(); currentController=controller;
+            try{ const resp = await fetch('/api/chat',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal }); if(!resp.ok) throw new Error(`HTTP ${resp.status}`); const reader=resp.body.getReader(); const decoder=new TextDecoder(); let buffer='';
+              while(true){ const {done,value}=await reader.read(); if(done) break; const chunk=decoder.decode(value); buffer+=chunk; const sentinelStart=buffer.indexOf('[[SONATA_FINAL]]'); if(sentinelStart!==-1){ const textPart=buffer.slice(0,sentinelStart); await storage.updateMessage(asstMsg.id,{ parts:[{text:textPart}], status:'done' }); await refreshTranscript(); break; } else { await storage.updateMessage(asstMsg.id,{ parts:[{text:buffer}], status:'streaming' }); await refreshTranscript(); } }
+            } catch(e){ await storage.updateMessage(asstMsg.id,{ status:'error' }); }
+            finally { currentController=null; sendBtn.disabled=false; stopBtn.style.display='none'; input.value=''; if(selectedMedia) clearMedia(); await refreshTranscript(); }
+            return;
+          }
 
           const cid = await createConversationIfNeeded();
-          const now = Date.now();
+          const userParts = []; if (text) userParts.push({ text }); if (selectedMedia){ const inlineData = await fileToInlineData(selectedMedia); userParts.push({ inlineData }); }
+          const userMsg = { id: uid(), conversationId: cid, role:'user', parts: userParts, createdAt: now, status:'done' };
+          await storage.addMessage(userMsg);
+          const asstMsg = { id: uid(), conversationId: cid, role:'model', parts:[{text:''}], createdAt: now+1, status:'streaming' };
+          await storage.addMessage(asstMsg); await refreshTranscript();
+          const model=document.getElementById('modelSelect').value; const config=getCurrentConfig(); const systemInstruction=getSystemInstructionString()||undefined; const history=await buildHistory(cid, asstMsg.createdAt); const payload = { model, config, systemInstruction, history, message: { role:'user', parts: userParts } };
+          const controller=new AbortController(); currentController=controller;
+          try{ const resp = await fetch('/api/chat',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal }); if(!resp.ok) throw new Error(`HTTP ${resp.status}`); const reader=resp.body.getReader(); const decoder=new TextDecoder(); let buffer='';
+            while(true){ const {done,value}=await reader.read(); if(done) break; const chunk=decoder.decode(value); buffer+=chunk; const sentinelStart=buffer.indexOf('[[SONATA_FINAL]]'); if(sentinelStart!==-1){ const textPart=buffer.slice(0,sentinelStart); await storage.updateMessage(asstMsg.id,{ parts:[{text:textPart}], status:'done' }); await refreshTranscript(); break; } else { await storage.updateMessage(asstMsg.id,{ parts:[{text:buffer}], status:'streaming' }); await refreshTranscript(); } }
+            await autoTitleIfNeeded(cid);
+          } catch(e){ await storage.updateMessage(asstMsg.id,{ status:'error' }); }
+          finally { currentController=null; sendBtn.disabled=false; stopBtn.style.display='none'; input.value=''; if(selectedMedia) clearMedia(); await refreshTranscript(); }
+        }
 
-          const userParts = [];
-          if (text) userParts.push({ text });
-          if (selectedMedia) {
-            const inlineData = await fileToInlineData(selectedMedia);
-            userParts.push({ inlineData });
-          }
+        async function regenerateFromEditedUser(msg){
+          const sendBtn=document.getElementById('sendButton'); const stopBtn=document.getElementById('stopButton'); sendBtn.disabled=true; stopBtn.style.display='inline-block';
+          const cid = msg.conversationId; const now=Date.now();
+          const asstMsg = { id: uid(), conversationId: cid, role:'model', parts:[{text:''}], createdAt: now+1, status:'streaming' };
+          await storage.addMessage(asstMsg); await refreshTranscript();
+          const model=document.getElementById('modelSelect').value; const config=getCurrentConfig(); const systemInstruction=getSystemInstructionString()||undefined; const history=await buildHistory(cid, msg.createdAt); const payload = { model, config, systemInstruction, history, message: { role:'user', parts: msg.parts||[] } };
+          const controller=new AbortController(); currentController=controller;
+          try{ const resp = await fetch('/api/chat',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal }); if(!resp.ok) throw new Error(`HTTP ${resp.status}`); const reader=resp.body.getReader(); const decoder=new TextDecoder(); let buffer='';
+            while(true){ const {done,value}=await reader.read(); if(done) break; const chunk=decoder.decode(value); buffer+=chunk; const sentinelStart=buffer.indexOf('[[SONATA_FINAL]]'); if(sentinelStart!==-1){ const textPart=buffer.slice(0,sentinelStart); await storage.updateMessage(asstMsg.id,{ parts:[{text:textPart}], status:'done' }); await refreshTranscript(); break; } else { await storage.updateMessage(asstMsg.id,{ parts:[{text:buffer}], status:'streaming' }); await refreshTranscript(); } }
+            if (!storage.isPrivateActive()) await autoTitleIfNeeded(cid);
+          } catch(e){ await storage.updateMessage(asstMsg.id,{ status:'error' }); }
+          finally { currentController=null; sendBtn.disabled=false; stopBtn.style.display='none'; await refreshTranscript(); }
+        }
 
-          const userMsg = { id: uid(), conversationId: cid, role: 'user', parts: userParts, createdAt: now, status: 'done' };
-          await addMessage(userMsg);
+        function stopStreaming(){ if (currentController){ currentController.abort(); currentController=null; } document.getElementById('stopButton').style.display='none'; }
 
-          const asstMsg = { id: uid(), conversationId: cid, role: 'model', parts: [{ text: '' }], createdAt: now + 1, status: 'streaming' };
-          await addMessage(asstMsg);
-          await refreshTranscript();
+        function collapseWhitespace(s){ return (s||'').replace(/\s+/g,' ').trim(); }
 
-          const config = getCurrentConfig();
-          const model = document.getElementById('modelSelect').value;
-          const systemInstruction = getSystemInstructionString() || undefined;
+        function renderTranscriptUI(messages){
+          const el=document.getElementById('transcript'); el.innerHTML='';
+          messages.forEach(msg=>{
+            const bubble=document.createElement('div'); bubble.className='bubble '+(msg.role==='user'?'user':'model');
+            const controls=document.createElement('div'); controls.className='controls';
+            const content=document.createElement('div');
 
-          const history = await buildHistory(cid, asstMsg.createdAt);
-          const payload = { model, config, systemInstruction, history, message: { role: 'user', parts: userParts } };
+            const editState = appState.ui.editing[msg.id];
 
-          const controller = new AbortController();
-          currentController = controller;
-
-          try {
-            const resp = await fetch('/api/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-              signal: controller.signal
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const reader = resp.body.getReader();
-            const decoder = new TextDecoder();
-
-            let buffer = '';
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              const chunk = decoder.decode(value);
-              buffer += chunk;
-
-              const sentinelStart = buffer.indexOf('[[SONATA_FINAL]]');
-              if (sentinelStart !== -1) {
-                const textPart = buffer.slice(0, sentinelStart);
-                await updateMessage(asstMsg.id, { parts: [{ text: textPart }], status: 'done' });
-                await refreshTranscript();
-                break;
+            if (editState && editState.mode==='user'){
+              const ta=document.createElement('textarea'); ta.className='edit-area'; ta.value=editState.text||''; ta.oninput=(e)=>{ editState.text=e.target.value; };
+              const attWrap=document.createElement('div'); attWrap.className='att-list';
+              const listLabel=document.createElement('div'); listLabel.textContent='Attachments'; attWrap.appendChild(listLabel);
+              editState.attachments.forEach((att,idx)=>{
+                const row=document.createElement('div'); row.className='att-item';
+                row.innerHTML = `<span>${att.inlineData?.mimeType || att.file?.name || 'Attachment'}</span>`;
+                const rm=document.createElement('button'); rm.className='small-btn'; rm.textContent= att.removed? 'Undo' : 'Remove'; rm.onclick=()=>{ att.removed=!att.removed; renderTranscriptUI(messages); };
+                row.appendChild(rm); attWrap.appendChild(row);
+              });
+              const addLabel=document.createElement('div'); addLabel.style.marginTop='6px'; addLabel.textContent='Add attachment:'; attWrap.appendChild(addLabel);
+              const addInput=document.createElement('input'); addInput.type='file'; addInput.onchange=(e)=>{ const file=e.target.files[0]; if(file){ editState.attachments.push({ file }); renderTranscriptUI(messages); } };
+              attWrap.appendChild(addInput);
+              const warn=document.createElement('div'); warn.className='warning'; warn.textContent='Saving will remove responses after this point and regenerate.';
+              const btnRow=document.createElement('div'); btnRow.style.marginTop='8px'; btnRow.style.display='flex'; btnRow.style.gap='8px';
+              const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{
+                const parts=[]; const textVal=collapseWhitespace(ta.value); if(textVal) parts.push({ text: textVal });
+                for (const a of editState.attachments){ if (a.removed) continue; if (a.inlineData) parts.push({ inlineData: a.inlineData }); else if (a.file){ const data=await fileToInlineData(a.file); parts.push({ inlineData: data }); } }
+                await storage.updateMessage(msg.id,{ parts, editedAt: Date.now(), originalText: editState.originalText||msg.parts?.find(p=>p.text)?.text||'' });
+                await storage.deleteMessagesAfter(msg.conversationId, msg.createdAt); delete appState.ui.editing[msg.id]; const updated=await storage.getMessage(msg.id); await refreshTranscript(); await regenerateFromEditedUser(updated);
+              };
+              const cancel=document.createElement('button'); cancel.className='small-btn'; cancel.textContent='Cancel'; cancel.onclick=()=>{ delete appState.ui.editing[msg.id]; renderTranscriptUI(messages); };
+              btnRow.appendChild(save); btnRow.appendChild(cancel);
+              content.appendChild(ta); content.appendChild(attWrap); content.appendChild(warn); content.appendChild(btnRow);
+            } else if (editState && editState.mode==='assistant'){
+              const ta=document.createElement('textarea'); ta.className='edit-area'; ta.value=(msg.parts?.find(p=>p.text)?.text)||''; ta.oninput=(e)=>{ editState.text=e.target.value; };
+              const btnRow=document.createElement('div'); btnRow.style.marginTop='8px'; btnRow.style.display='flex'; btnRow.style.gap='8px';
+              const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{ await storage.updateMessage(msg.id,{ parts:[{ text: collapseWhitespace(ta.value) }], editedAt: Date.now() }); delete appState.ui.editing[msg.id]; await refreshTranscript(); };
+              const cancel=document.createElement('button'); cancel.className='small-btn'; cancel.textContent='Cancel'; cancel.onclick=()=>{ delete appState.ui.editing[msg.id]; renderTranscriptUI(messages); };
+              btnRow.appendChild(save); btnRow.appendChild(cancel); content.appendChild(ta); content.appendChild(btnRow);
+            } else {
+              const textPart = (msg.parts && msg.parts.find(p=>p.text)) ? msg.parts.find(p=>p.text).text : '';
+              if (msg.role==='user'){
+                const t=document.createElement('div'); t.innerHTML=escapeHTML(textPart||''); content.appendChild(t);
+                if (msg.parts){ msg.parts.forEach(p=>{ if (p.inlineData){ const att=document.createElement('div'); att.style.fontSize='12px'; att.style.color='#555'; att.textContent=`Attachment: ${p.inlineData.mimeType}`; content.appendChild(att); } }); }
               } else {
-                await updateMessage(asstMsg.id, { parts: [{ text: buffer }], status: 'streaming' });
-                await refreshTranscript();
+                const html=parseCustomMarkdown(textPart||''); content.innerHTML=html; highlightCode(content); renderMath(content);
+              }
+              const copyBtn=document.createElement('button'); copyBtn.className='small-btn'; copyBtn.textContent='Copy'; copyBtn.onclick=()=>{ const t=msg.parts?.map(p=>p.text||'').join('\n')||''; navigator.clipboard.writeText(t); };
+              controls.appendChild(copyBtn);
+              if (msg.role==='user'){
+                const ebtn=document.createElement('button'); ebtn.className='small-btn'; ebtn.textContent='Edit'; ebtn.onclick=()=>{ appState.ui.editing[msg.id] = { mode:'user', text: textPart||'', attachments: (msg.parts||[]).filter(p=>p.inlineData).map(p=>({ inlineData:p.inlineData, removed:false })), originalText: textPart||'' }; renderTranscriptUI(messages); };
+                controls.appendChild(ebtn);
+              } else {
+                const ebtn=document.createElement('button'); ebtn.className='small-btn'; ebtn.textContent='Edit'; ebtn.onclick=()=>{ appState.ui.editing[msg.id] = { mode:'assistant', text: textPart||'' }; renderTranscriptUI(messages); };
+                const rbtn=document.createElement('button'); rbtn.className='small-btn'; rbtn.textContent='Retry'; rbtn.disabled = msg.status==='streaming' || !!currentController; rbtn.onclick=()=>sendMessage({ retryForMessageId: msg.id });
+                controls.appendChild(ebtn); controls.appendChild(rbtn);
               }
             }
 
-            await autoTitleIfNeeded(cid, (await db.messages.get(asstMsg.id)).parts?.[0]?.text || '');
-
-          } catch (e) {
-            await updateMessage(asstMsg.id, { status: 'error' });
-          } finally {
-            currentController = null;
-            sendBtn.disabled = false;
-            stopBtn.style.display = 'none';
-            input.value = '';
-            if (selectedMedia) clearMedia();
-            await refreshTranscript();
-          }
+            bubble.appendChild(content); bubble.appendChild(controls); el.appendChild(bubble);
+          });
+          el.scrollTop = el.scrollHeight;
         }
 
-        async function stopStreaming() {
-          if (currentController) { currentController.abort(); currentController = null; }
-          document.getElementById('stopButton').style.display = 'none';
-        }
-
-        async function openEditMessage(messageId) {
-          const msg = await db.messages.get(messageId);
-          if (!msg || msg.role !== 'user') return;
-          const original = (msg.parts?.find(p => p.text)?.text) || '';
-          const edited = prompt('Edit your message:', original);
-          if (edited === null) return;
-
-          let originalText = msg.originalText || original;
-          const parts = (msg.parts || []).filter(p => !p.text);
-          if (edited.trim()) parts.unshift({ text: edited.trim() });
-
-          await updateMessage(msg.id, { parts, editedAt: Date.now(), originalText });
-          await deleteMessagesAfter(msg.conversationId, msg.createdAt);
-          await refreshTranscript();
-
-          const sendBtn = document.getElementById('sendButton');
-          const stopBtn = document.getElementById('stopButton');
-          sendBtn.disabled = true;
-          stopBtn.style.display = 'inline-block';
-
-          const cid = msg.conversationId;
-          const now = Date.now();
-          const asstMsg = { id: uid(), conversationId: cid, role: 'model', parts: [{ text: '' }], createdAt: now + 1, status: 'streaming' };
-          await addMessage(asstMsg);
-          await refreshTranscript();
-
-          const config = getCurrentConfig();
-          const model = document.getElementById('modelSelect').value;
-          const systemInstruction = getSystemInstructionString() || undefined;
-
-          const history = await buildHistory(cid, msg.createdAt);
-          const payload = { model, config, systemInstruction, history, message: { role: 'user', parts } };
-
-          const controller = new AbortController();
-          currentController = controller;
-
-          try {
-            const resp = await fetch('/api/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-              signal: controller.signal
+        async function refreshChatsPanel(){
+          const tab = appState.ui.chatsTab; const listEl=document.getElementById('chatsList'); const trashEl=document.getElementById('trashList');
+          if (tab==='chats'){ listEl.style.display='block'; trashEl.style.display='none'; const convs=await storage.listConversations(); listEl.innerHTML='';
+            const header=document.createElement('div'); header.className='conv-row'; header.innerHTML='<strong>Title</strong><strong>Updated</strong><span></span><span></span><span></span>'; listEl.appendChild(header);
+            convs.forEach(c=>{
+              const row=document.createElement('div'); row.className='conv-row';
+              const title=document.createElement('span'); title.className='conv-title'; title.contentEditable='true'; title.textContent=c.title||'(untitled)';
+              title.onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); title.blur(); } };
+              title.onblur=()=>{ const t=collapseWhitespace(title.textContent||''); storage.updateConversation(c.id,{ title:t }); };
+              const time=document.createElement('span'); time.style.fontSize='12px'; time.style.color='#666'; time.textContent=formatTime(c.updatedAt);
+              const open=document.createElement('button'); open.className='small-btn'; open.textContent='Open'; open.onclick=()=>{ appState.ephemeral.active=false; appState.ui.newChatPending=false; appState.activeConversationId=c.id; localStorage.setItem('sonata.activeConversationId', c.id); closeChatsModal(); refreshPrivateUI(); refreshTranscript(); };
+              const pin=document.createElement('button'); pin.className='small-btn'; pin.textContent=c.pinned?'Unpin':'Pin'; pin.onclick=async()=>{ await storage.updateConversation(c.id,{ pinned: !c.pinned }); await refreshChatsPanel(); };
+              const del=document.createElement('button'); del.className='small-btn'; del.textContent='Delete'; del.onclick=async()=>{ await storage.softDeleteConversation(c.id); if (appState.activeConversationId===c.id){ startNewChat(); } await refreshChatsPanel(); };
+              row.appendChild(title); row.appendChild(time); row.appendChild(open); row.appendChild(pin); row.appendChild(del); listEl.appendChild(row);
             });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const reader = resp.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              const chunk = decoder.decode(value);
-              buffer += chunk;
-              const sentinelStart = buffer.indexOf('[[SONATA_FINAL]]');
-              if (sentinelStart !== -1) {
-                const textPart = buffer.slice(0, sentinelStart);
-                await updateMessage(asstMsg.id, { parts: [{ text: textPart }], status: 'done' });
-                await refreshTranscript();
-                break;
-              } else {
-                await updateMessage(asstMsg.id, { parts: [{ text: buffer }], status: 'streaming' });
-                await refreshTranscript();
-              }
-            }
-            await autoTitleIfNeeded(cid, (await db.messages.get(asstMsg.id)).parts?.[0]?.text || '');
-          } catch (e) {
-            await updateMessage(asstMsg.id, { status: 'error' });
-          } finally {
-            currentController = null;
-            sendBtn.disabled = false;
-            stopBtn.style.display = 'none';
-            await refreshTranscript();
+          } else {
+            listEl.style.display='none'; trashEl.style.display='block'; const convs=await storage.listTrash(); trashEl.innerHTML='';
+            const header=document.createElement('div'); header.className='conv-row'; header.innerHTML='<strong>Title</strong><strong>Deleted</strong><span></span><span></span><span></span>'; trashEl.appendChild(header);
+            convs.forEach(c=>{
+              const row=document.createElement('div'); row.className='conv-row';
+              const title=document.createElement('span'); title.textContent=c.title||'(untitled)';
+              const time=document.createElement('span'); time.style.fontSize='12px'; time.style.color='#666'; time.textContent=formatTime(c.deletedAt||c.updatedAt);
+              const restore=document.createElement('button'); restore.className='small-btn'; restore.textContent='Restore'; restore.onclick=async()=>{ await storage.restoreConversation(c.id); await refreshChatsPanel(); };
+              const delp=document.createElement('button'); delp.className='small-btn'; delp.textContent='Delete Permanently'; delp.onclick=async()=>{ await storage.deleteConversationPermanently(c.id); await refreshChatsPanel(); };
+              const open=document.createElement('button'); open.className='small-btn'; open.textContent='Open'; open.disabled=true;
+              row.appendChild(title); row.appendChild(time); row.appendChild(open); row.appendChild(restore); row.appendChild(delp); trashEl.appendChild(row);
+            });
           }
         }
 
-        document.addEventListener('DOMContentLoaded', async function() {
+        function openChatsModal(){ document.getElementById('chatsModal').style.display='block'; refreshChatsPanel(); }
+        function closeChatsModal(){ document.getElementById('chatsModal').style.display='none'; }
+        function openSettingsModal(){ document.getElementById('settingsModal').style.display='block'; buildSettingsBody(); }
+        function closeSettingsModal(){ document.getElementById('settingsModal').style.display='none'; }
+
+        function buildSettingsBody(){
+          const body=document.getElementById('settingsBody'); if (!body) return; body.innerHTML='';
+          const section=(title, innerHTML)=>{ const div=document.createElement('div'); div.style.marginBottom='16px'; div.innerHTML=`<h4>${title}</h4>`+innerHTML; body.appendChild(div); };
+          section('Reasoning', `<div class="row"><label class="toggle-switch"><input type="checkbox" id="reasoningToggle" checked><span class="slider"></span></label><span id="reasoningModeLabel">Dynamic</span></div><div id="reasoningPresets" style="display:none; margin-top:10px;"><div style="display:flex; gap:8px; margin-bottom:10px;"><button class="preset-btn" data-value="0">None</button><button class="preset-btn" data-value="low">Low</button><button class="preset-btn" data-value="medium">Medium</button><button class="preset-btn active" data-value="high">High</button></div><div id="reasoningInfo" style="font-size:12px; color:#666; margin-top:5px;"></div></div>`);
+          section('Sampling Parameters', `<div class="param-row"><label for="temperatureSlider">Temperature:</label><div class="row"><input type="range" id="temperatureSlider" min="0" max="2" step="0.1" value="1.0"><span id="temperatureValue">1.0</span></div></div><div class="param-row"><label for="topPSlider">Top-P:</label><div class="row"><input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.95"><span id="topPValue">0.95</span></div></div><div class="param-row"><label for="topKSlider">Top-K:</label><div class="row"><input type="range" id="topKSlider" min="1" max="40" step="1" value="40"><span id="topKValue">40</span></div></div><div class="param-row"><label for="seedInput">Seed:</label><input type="number" id="seedInput" placeholder="Random" style="width:100px;"></div>`);
+          section('Penalty Parameters', `<div class="param-row"><label for="presencePenaltySlider">Presence Penalty:</label><div class="row"><input type="range" id="presencePenaltySlider" min="-2" max="2" step="0.1" value="0"><span id="presencePenaltyValue">0.0</span></div></div><div class="param-row"><label for="frequencyPenaltySlider">Frequency Penalty:</label><div class="row"><input type="range" id="frequencyPenaltySlider" min="-2" max="2" step="0.1" value="0"><span id="frequencyPenaltyValue">0.0</span></div></div>`);
+          section('Custom Instructions', `<div class="param-row"><label for="personalityPreset">Personality Preset:</label><select id="personalityPreset" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"><option value="">Default Assistant</option><option value="helpful">Helpful Assistant</option><option value="code_reviewer">Code Reviewer</option><option value="creative_writer">Creative Writer</option><option value="custom">Custom Instructions</option></select><div class="param-help">Choose a personality preset or use custom instructions</div></div><div class="param-row" id="customInstructionsRow" style="display:none;"><label for="customInstructions">Custom Instructions:</label><textarea id="customInstructions" placeholder="Enter custom instructions to add to the system prompt..." style="width:100%; height:100px; padding:8px; border:1px solid #ccc; border-radius:4px; resize:vertical; font-family:inherit;"></textarea></div>`);
+          section('Output Parameters', `<div class="param-row"><label for="mediaResolution">Media Resolution:</label><select id="mediaResolution" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"><option value="">Default</option><option value="MEDIA_RESOLUTION_LOW">Low (64 tokens)</option><option value="MEDIA_RESOLUTION_MEDIUM">Medium (256 tokens)</option><option value="MEDIA_RESOLUTION_HIGH">High (256 tokens, zoomed)</option></select></div><div class="param-row"><label><input type="checkbox" id="responseLogprobs"> Response Log Probabilities</label></div><div class="param-row" id="logprobsRow" style="display:none;"><label for="logprobsInput">Log Probs Count:</label><input type="number" id="logprobsInput" min="1" max="5" value="1" style="width:80px;"></div>`);
+
+          document.getElementById('reasoningToggle').addEventListener('change', ()=>{ const toggle=document.getElementById('reasoningToggle'); const presetsDiv=document.getElementById('reasoningPresets'); const modeLabel=document.getElementById('reasoningModeLabel'); if(toggle.checked){ currentReasoningMode='dynamic'; modeLabel.textContent='Dynamic'; presetsDiv.style.display='none'; } else { currentReasoningMode='controlled'; modeLabel.textContent='Controlled'; presetsDiv.style.display='block'; updateReasoningUI(); } });
+          document.querySelectorAll('.preset-btn').forEach(btn=>{ btn.addEventListener('click', ()=>{ document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); currentReasoningPreset=btn.dataset.value; updateReasoningUI(); }); });
+          document.getElementById('temperatureSlider').addEventListener('input', ()=>{ document.getElementById('temperatureValue').textContent = parseFloat(document.getElementById('temperatureSlider').value).toFixed(1); });
+          document.getElementById('topPSlider').addEventListener('input', ()=>{ document.getElementById('topPValue').textContent = parseFloat(document.getElementById('topPSlider').value).toFixed(2); });
+          document.getElementById('topKSlider').addEventListener('input', ()=>{ document.getElementById('topKValue').textContent = parseInt(document.getElementById('topKSlider').value); });
+          document.getElementById('presencePenaltySlider').addEventListener('input', ()=>{ document.getElementById('presencePenaltyValue').textContent = parseFloat(document.getElementById('presencePenaltySlider').value).toFixed(1); });
+          document.getElementById('frequencyPenaltySlider').addEventListener('input', ()=>{ document.getElementById('frequencyPenaltyValue').textContent = parseFloat(document.getElementById('frequencyPenaltySlider').value).toFixed(1); });
+          document.getElementById('responseLogprobs').addEventListener('change', ()=>{ document.getElementById('logprobsRow').style.display = document.getElementById('responseLogprobs').checked ? 'block' : 'none'; });
+          const savedPreset = localStorage.getItem('personalityPreset'); if (savedPreset) document.getElementById('personalityPreset').value=savedPreset; const savedCustom = localStorage.getItem('customInstructions'); if (savedCustom) document.getElementById('customInstructions').value = savedCustom; handlePersonalityChange();
+        }
+
+        function updateReasoningUI(){ const modelSelect=document.getElementById('modelSelect'); const selectedModel=modelSelect.value; const range=modelRanges[selectedModel]; const presets=getPresetValues(selectedModel); const info=document.getElementById('reasoningInfo'); if(!range) return; const noneBtn=document.querySelector('[data-value="0"]'); if (range.canDisable){ noneBtn.disabled=false; noneBtn.textContent='None'; } else { noneBtn.disabled=true; noneBtn.textContent='None (N/A)'; if(currentReasoningPreset==='none'){ currentReasoningPreset='low'; } } if (currentReasoningMode==='controlled'){ const val=presets[currentReasoningPreset]||presets.high; if (info) info.textContent = `${val} tokens (Range: ${range.min}-${range.max})`; } }
+
+        function handlePersonalityChange(){ const preset=document.getElementById('personalityPreset').value; const customRow=document.getElementById('customInstructionsRow'); if (preset==='custom'){ customRow.style.display='block'; } else { customRow.style.display='none'; } localStorage.setItem('personalityPreset', preset); localStorage.setItem('customInstructions', document.getElementById('customInstructions').value); }
+
+        document.addEventListener('DOMContentLoaded', async ()=>{
+          document.getElementById('mediaInput').addEventListener('change', previewMedia);
+          document.getElementById('clearMedia').addEventListener('click', clearMedia);
+          document.getElementById('sendButton').addEventListener('click', ()=>sendMessage());
+          document.getElementById('stopButton').addEventListener('click', stopStreaming);
+          document.getElementById('chatsButton').addEventListener('click', openChatsModal);
+          document.getElementById('modalNewChatBtn').addEventListener('click', ()=>{ startNewChat(); closeChatsModal(); });
+          document.getElementById('newChatButton').addEventListener('click', startNewChat);
+          document.getElementById('privateToggle').addEventListener('change', (e)=>togglePrivateMode(e.target.checked));
+          document.getElementById('savePrivateButton').addEventListener('click', savePrivateChat);
+          document.getElementById('tabChatsBtn').addEventListener('click', ()=>{ appState.ui.chatsTab='chats'; document.getElementById('tabChatsBtn').classList.add('active'); document.getElementById('tabTrashBtn').classList.remove('active'); refreshChatsPanel(); });
+          document.getElementById('tabTrashBtn').addEventListener('click', ()=>{ appState.ui.chatsTab='trash'; document.getElementById('tabTrashBtn').classList.add('active'); document.getElementById('tabChatsBtn').classList.remove('active'); refreshChatsPanel(); });
+          document.getElementById('messageInput').addEventListener('keypress', (e)=>{ if (e.key==='Enter'){ sendMessage(); } });
+          window.addEventListener('click', function(event){ const sm=document.getElementById('settingsModal'); const cm=document.getElementById('chatsModal'); if (event.target===sm) closeSettingsModal(); if (event.target===cm) closeChatsModal(); });
+
+          updateReasoningUI();
+          await startupPurge();
           await ensureActiveConversation();
           await refreshTranscript();
-        });
-
-        // Allow sending with Enter key
-        document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
         });
     </script>
 </body>
