@@ -10,114 +10,33 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = 3000;
 
-// Check if API key is provided
 if (!process.env.GEMINI_API_KEY) {
   console.error('GEMINI_API_KEY environment variable is not set!');
   process.exit(1);
 }
 
-// Initialize Gemini AI client
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-function isDocumentType(mimeType) {
-  const documentTypes = [
-    'application/pdf', 'text/plain', 'text/markdown', 'text/html', 
-    'text/x-python', 'application/json', 'text/csv', 'text/javascript',
-    'text/css', 'application/xml', 'text/xml'
-  ];
-  return documentTypes.includes(mimeType);
-}
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(__dirname));
 
-// Serve the HTML file
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// API endpoint for chat
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, media, model, config } = req.body;
+    const { model, config, systemInstruction, history, message } = req.body || {};
     const selectedModel = model || 'gemini-2.5-flash';
-    
-    if (!message && !media) {
-      return res.status(400).json({ error: 'Message or media is required' });
-    }
-    
-    // Set headers for streaming response
-    res.setHeader('Content-Type', 'text/plain');
-    res.setHeader('Transfer-Encoding', 'chunked');
-    
-    // Prepare content parts
-    const parts = [];
-    
-    // Add text part if message exists
-    if (message) {
-      parts.push({ text: message });
-    }
-    
-    // Add media part if media exists
-    if (media) {
-      // Validate supported formats
-      const supportedFormats = [
-        // Images
-        'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
-        // Videos  
-        'video/mp4', 'video/mpeg', 'video/mov', 'video/avi', 'video/x-flv', 
-        'video/mpg', 'video/webm', 'video/wmv', 'video/3gpp',
-        // Audio
-        'audio/wav', 'audio/mp3', 'audio/aiff', 'audio/aac', 'audio/ogg', 'audio/flac',
-        'application/pdf', 'text/plain', 'text/markdown', 'text/html', 
-        'text/x-python', 'application/json', 'text/csv', 'text/javascript',
-        'text/css', 'application/xml', 'text/xml', 'application/octet-stream'
-      ];
-      
-      if (!supportedFormats.includes(media.mimeType)) {
-        return res.status(400).json({ 
-          error: `Unsupported media format: ${media.mimeType}. Supported formats: ${supportedFormats.join(', ')}` 
-        });
-      }
-      
-      let processedMimeType = media.mimeType;
-      if (media.mimeType === 'application/octet-stream' || 
-          media.mimeType === 'text/x-python' ||
-          media.mimeType === 'text/javascript' ||
-          media.mimeType === 'text/css' ||
-          media.mimeType === 'application/xml' ||
-          media.mimeType === 'text/xml') {
-        processedMimeType = 'text/plain';
-      }
-      
-      parts.push({
-        inlineData: {
-          mimeType: processedMimeType,
-          data: media.data
-        }
-      });
-    }
-    
-    let systemInstruction = `You are a helpful AI assistant. You can format your responses using Markdown syntax for better readability:`;
-    
-    if (config && config.customInstructions && config.personalityPreset === 'custom') {
-      systemInstruction = config.customInstructions + '\n\n' + systemInstruction;
-    }
-    
-    if (config && config.personalityPreset && config.personalityPreset !== '' && config.personalityPreset !== 'custom') {
-      const personalities = {
-        helpful: "You are a helpful and friendly assistant who provides clear, accurate, and useful information. Always be polite and supportive.",
-        code_reviewer: "You are an experienced code reviewer. Focus on code quality, best practices, security, performance, and maintainability. Provide constructive feedback and suggestions for improvement.",
-        creative_writer: "You are a creative writer with expertise in storytelling, poetry, and creative expression. Help with writing projects, brainstorming ideas, and improving narrative techniques."
-      };
-      if (personalities[config.personalityPreset]) {
-        systemInstruction = personalities[config.personalityPreset] + '\n\n' + systemInstruction;
-      }
+
+    if (!message || !message.role || !message.parts) {
+      return res.status(400).json({ error: 'Invalid payload: message with role and parts is required' });
     }
 
-    // Generate streaming response from Gemini
-    const generationConfig = {
-      systemInstruction: systemInstruction + `
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    let baseSystemInstruction = `You are a helpful AI assistant. You can format your responses using Markdown syntax for better readability: 
 
 ## Basic Formatting
 - Use **bold** for emphasis and *italics* for subtle emphasis
@@ -127,75 +46,70 @@ app.post('/api/chat', async (req, res) => {
 - Use > for blockquotes and create tables, links, and other standard Markdown elements
 
 ## Advanced Features (use only when helpful)
-- **Callouts**: Use > [!NOTE], > [!TIP], > [!WARNING], > [!DANGER], or > [!INFO] for special attention blocks
-- **Task Lists**: Use - [x] for completed and - [ ] for incomplete tasks when organizing action items
-- **Math**: Use $inline math$ or $$display math$$ for mathematical expressions when relevant
-- **Interactive Elements**: 
-  - Use ||spoiler text|| for content that should be hidden until clicked
-  - Use [[Ctrl+C]] style formatting for keyboard shortcuts
-  - Use <details>Section Title</details> for collapsible sections with detailed content
-- **Footnotes**: Use [^1] with [^1]: Definition for citations and references when needed
+- **Callouts**: Use > [!NOTE], > [!TIP], > [!WARNING], > [!DANGER], or > [!INFO]
+- **Task Lists**: Use - [x] and - [ ] for tasks
+- **Math**: Use $inline$ or $$display$$ math
+- **Interactive Elements**: ||spoiler||, [[Ctrl+C]], <details>Section</details>
+- **Footnotes**: Use [^1] and footnote definitions
 
 ## Code Support
-- Code blocks support syntax highlighting for many languages (python, javascript, java, cpp, rust, go, html, css, sql, bash, etc.)
-- Choose appropriate formatting based on content - don't feel obligated to use advanced features unless they genuinely improve the response
+- Use fenced code blocks with language tags
+- Only use advanced features when they help clarity
 
-When analyzing media files (images, videos, audio), describe what you see/hear in detail and answer any questions about the content. Format your responses to be clear and well-structured, using these formatting options naturally where they add value.`
-    };
+When analyzing media files (images, videos, audio), describe what you see/hear and answer questions clearly.`;
 
-    if (config) {
-      if (config.temperature !== undefined) {
-        generationConfig.temperature = config.temperature;
+    if (!systemInstruction) {
+      if (config && config.customInstructions && config.personalityPreset === 'custom') {
+        baseSystemInstruction = config.customInstructions + '\n\n' + baseSystemInstruction;
       }
-      if (config.topP !== undefined) {
-        generationConfig.topP = config.topP;
-      }
-      if (config.topK !== undefined) {
-        generationConfig.topK = config.topK;
-      }
-      if (config.seed !== undefined) {
-        generationConfig.seed = config.seed;
-      }
-      if (config.presencePenalty !== undefined) {
-        generationConfig.presencePenalty = config.presencePenalty;
-      }
-      if (config.frequencyPenalty !== undefined) {
-        generationConfig.frequencyPenalty = config.frequencyPenalty;
-      }
-      // if (config.responseLogprobs !== undefined) {
-      //   generationConfig.responseLogprobs = config.responseLogprobs;
-      // }
-      // if (config.logprobs !== undefined) {
-      //   generationConfig.logprobs = config.logprobs;
-      // }
-      if (config.mediaResolution) {
-        generationConfig.mediaResolution = config.mediaResolution;
+      if (config && config.personalityPreset && config.personalityPreset !== '' && config.personalityPreset !== 'custom') {
+        const personalities = {
+          helpful: "You are a helpful and friendly assistant who provides clear, accurate, and useful information. Always be polite and supportive.",
+          code_reviewer: "You are an experienced code reviewer. Focus on code quality, best practices, security, performance, and maintainability. Provide constructive feedback and suggestions for improvement.",
+          creative_writer: "You are a creative writer with expertise in storytelling, poetry, and creative expression. Help with writing projects, brainstorming ideas, and improving narrative techniques."
+        };
+        if (personalities[config.personalityPreset]) {
+          baseSystemInstruction = personalities[config.personalityPreset] + '\n\n' + baseSystemInstruction;
+        }
       }
     }
+
+    const generationConfig = {};
+    if (config) {
+      if (config.temperature !== undefined) generationConfig.temperature = config.temperature;
+      if (config.topP !== undefined) generationConfig.topP = config.topP;
+      if (config.topK !== undefined) generationConfig.topK = config.topK;
+      if (config.seed !== undefined) generationConfig.seed = config.seed;
+      if (config.presencePenalty !== undefined) generationConfig.presencePenalty = config.presencePenalty;
+      if (config.frequencyPenalty !== undefined) generationConfig.frequencyPenalty = config.frequencyPenalty;
+      if (config.mediaResolution) generationConfig.mediaResolution = config.mediaResolution;
+      if (config.thinkingBudget !== undefined) generationConfig.thinkingBudget = config.thinkingBudget;
+      if (config.responseLogprobs !== undefined) generationConfig.responseLogprobs = config.responseLogprobs;
+      if (config.logprobs !== undefined) generationConfig.logprobs = config.logprobs;
+    }
+
+    const contents = [...(history || []), message];
 
     const response = await ai.models.generateContentStream({
       model: selectedModel,
-      contents: [
-        {
-          role: "user",
-          parts: parts
-        }
-      ],
-      config: generationConfig
+      contents,
+      config: generationConfig,
+      systemInstruction: systemInstruction || baseSystemInstruction
     });
-    
-    // Stream chunks back to client
+
+    let usage = null;
+    let finishReason = 'unknown';
+
     for await (const chunk of response) {
-      if (chunk.text) {
-        res.write(chunk.text);
-      }
+      if (chunk.text) res.write(chunk.text);
+      if (chunk.usageMetadata) usage = chunk.usageMetadata;
+      if (chunk.finishReason) finishReason = chunk.finishReason;
     }
-    
+
+    res.write(`\n\n[[SONATA_FINAL]]${JSON.stringify({ usageMetadata: usage, finishReason })}[[/SONATA_FINAL]]`);
     res.end();
-    
   } catch (error) {
     console.error('Error:', error);
-    
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to generate response' });
     } else {
