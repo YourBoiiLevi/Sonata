@@ -16,6 +16,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dexie@4.0.8/dist/dexie.min.js"></script>
+
     
 
     <style>
@@ -647,10 +649,13 @@
         <img id="mediaPreview" alt="Media preview" />
         <video id="videoPreview" controls style="display: none; max-width: 300px;"></video>
         <audio id="audioPreview" controls style="display: none; max-width: 300px;"></audio>
-        <button id="sendButton" onclick="sendMessage()">Send</button>
+        <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
+          <button id="sendButton" onclick="sendMessage()">Send</button>
+          <button id="stopButton" onclick="stopStreaming()" style="display:none; background:#dc3545; color:#fff; border:none; padding:10px 16px; border-radius:4px; cursor:pointer;">Stop</button>
+        </div>
     </div>
     
-    <div id="response">Response will appear here...</div>
+    <div id="transcript" style="margin-top:20px; padding:12px; border:1px solid #ddd; border-radius:4px; background:#f9f9f9; max-height:60vh; overflow:auto;"></div>
     
     <!-- Settings Modal -->
     <div id="settingsModal" class="modal" style="display: none;">
@@ -1381,6 +1386,366 @@
             if (customInstructionsTextarea) {
                 customInstructionsTextarea.addEventListener('input', saveCustomInstructions);
             }
+        });
+
+        // ===== Multi-turn + Dexie persistence overrides appended below =====
+        // Dexie DB and data models
+        const db = new Dexie('sonata');
+        db.version(1).stores({
+          conversations: 'id, title, model, systemInstruction, createdAt, updatedAt',
+          messages: 'id, conversationId, role, createdAt, editedAt, status'
+        });
+
+        let activeConversationId = null;
+        let currentController = null;
+
+        function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+        async function ensureActiveConversation() {
+          if (activeConversationId) return activeConversationId;
+          const saved = localStorage.getItem('sonata.activeConversationId');
+          if (saved && await db.conversations.get(saved)) { activeConversationId = saved; return activeConversationId; }
+          return null;
+        }
+
+        async function createConversationIfNeeded() {
+          if (await ensureActiveConversation()) return activeConversationId;
+          const id = uid();
+          const model = document.getElementById('modelSelect').value;
+          const systemInstruction = getSystemInstructionString();
+          const ts = Date.now();
+          await db.conversations.put({ id, title: '', model, systemInstruction, createdAt: ts, updatedAt: ts, messageIds: [] });
+          activeConversationId = id;
+          localStorage.setItem('sonata.activeConversationId', id);
+          return id;
+        }
+
+        function escapeHTML(str) { const div = document.createElement('div'); div.innerText = str; return div.innerHTML; }
+
+        function getCurrentConfig() {
+          const config = {
+            temperature: parseFloat(document.getElementById('temperatureSlider').value),
+            topP: parseFloat(document.getElementById('topPSlider').value),
+            topK: parseInt(document.getElementById('topKSlider').value),
+            presencePenalty: parseFloat(document.getElementById('presencePenaltySlider').value),
+            frequencyPenalty: parseFloat(document.getElementById('frequencyPenaltySlider').value),
+            mediaResolution: document.getElementById('mediaResolution').value || undefined
+          };
+          if (currentReasoningMode === 'dynamic') config.thinkingBudget = -1;
+          else {
+            const modelKey = document.getElementById('modelSelect').value;
+            const presets = getPresetValues(modelKey);
+            config.thinkingBudget = presets[currentReasoningPreset] || presets.high;
+          }
+          const seedValue = document.getElementById('seedInput').value;
+          if (seedValue) config.seed = parseInt(seedValue);
+          if (document.getElementById('responseLogprobs').checked) {
+            config.responseLogprobs = true;
+            config.logprobs = parseInt(document.getElementById('logprobsInput').value);
+          }
+          const personalityPreset = document.getElementById('personalityPreset').value;
+          const customInstructions = document.getElementById('customInstructions').value.trim();
+          if (personalityPreset === 'custom' && customInstructions) { config.personalityPreset = 'custom'; config.customInstructions = customInstructions; }
+          else if (personalityPreset && personalityPreset !== '' && personalityPreset !== 'custom') { config.personalityPreset = personalityPreset; }
+          return config;
+        }
+
+        function getSystemInstructionString() {
+          const preset = document.getElementById('personalityPreset').value;
+          const custom = document.getElementById('customInstructions').value.trim();
+          if (preset === 'custom' && custom) return custom;
+          return '';
+        }
+
+        async function listMessages(conversationId) {
+          return db.messages.where('conversationId').equals(conversationId).sortBy('createdAt');
+        }
+
+        function renderTranscriptUI(messages) {
+          const el = document.getElementById('transcript');
+          el.innerHTML = '';
+          messages.forEach(msg => {
+            const bubble = document.createElement('div');
+            bubble.style.padding = '10px';
+            bubble.style.margin = '8px 0';
+            bubble.style.borderRadius = '8px';
+            bubble.style.position = 'relative';
+            if (msg.role === 'user') {
+              bubble.style.background = '#e9f5ff';
+              bubble.style.border = '1px solid #b6e0ff';
+            } else {
+              bubble.style.background = '#fff';
+              bubble.style.border = '1px solid #eee';
+            }
+            const content = document.createElement('div');
+            const textPart = (msg.parts && msg.parts.find(p => p.text)) ? msg.parts.find(p => p.text).text : '';
+            if (msg.role === 'user') {
+              content.innerHTML = `<div>${escapeHTML(textPart || '')}</div>`;
+              if (msg.parts) {
+                msg.parts.forEach(p => {
+                  if (p.inlineData) {
+                    const att = document.createElement('div');
+                    att.style.fontSize = '12px';
+                    att.style.color = '#555';
+                    att.textContent = `Attachment: ${p.inlineData.mimeType}`;
+                    content.appendChild(att);
+                  }
+                });
+              }
+            } else {
+              const html = parseCustomMarkdown(textPart || '');
+              content.innerHTML = html;
+              highlightCode(content);
+              renderMath(content);
+            }
+            bubble.appendChild(content);
+
+            const controls = document.createElement('div');
+            controls.style.position = 'absolute';
+            controls.style.top = '6px';
+            controls.style.right = '6px';
+            controls.style.display = 'flex';
+            controls.style.gap = '6px';
+
+            const copyBtn = document.createElement('button');
+            copyBtn.textContent = 'Copy';
+            copyBtn.style.fontSize = '12px';
+            copyBtn.onclick = () => {
+              const t = msg.parts?.map(p => p.text || '').join('\n') || '';
+              navigator.clipboard.writeText(t);
+            };
+            controls.appendChild(copyBtn);
+
+            if (msg.role === 'user') {
+              const editBtn = document.createElement('button');
+              editBtn.textContent = 'Edit';
+              editBtn.style.fontSize = '12px';
+              editBtn.onclick = () => openEditMessage(msg.id);
+              controls.appendChild(editBtn);
+            }
+
+            bubble.appendChild(controls);
+            el.appendChild(bubble);
+          });
+          el.scrollTop = el.scrollHeight;
+        }
+
+        async function refreshTranscript() {
+          const cid = await ensureActiveConversation();
+          if (!cid) {
+            document.getElementById('transcript').innerHTML = 'Start a conversation...';
+            return;
+          }
+          const msgs = await listMessages(cid);
+          renderTranscriptUI(msgs);
+        }
+
+        async function addMessage(message) {
+          await db.messages.put(message);
+          await db.conversations.update(message.conversationId, { updatedAt: Date.now() });
+        }
+
+        async function updateMessage(id, patch) {
+          const m = await db.messages.get(id);
+          if (!m) return;
+          Object.assign(m, patch);
+          await db.messages.put(m);
+        }
+
+        async function deleteMessagesAfter(conversationId, createdAt) {
+          const msgs = await listMessages(conversationId);
+          const toDelete = msgs.filter(m => m.createdAt > createdAt).map(m => m.id);
+          await db.messages.bulkDelete(toDelete);
+          await db.conversations.update(conversationId, { updatedAt: Date.now() });
+        }
+
+        async function autoTitleIfNeeded(conversationId, assistantText) {
+          const conv = await db.conversations.get(conversationId);
+          if (!conv || conv.title) return;
+          const sentence = (assistantText || '').split(/[.!?]/)[0].trim().slice(0, 60);
+          await db.conversations.update(conversationId, { title: sentence });
+        }
+
+        async function buildHistory(conversationId, untilCreatedAt = Infinity) {
+          const msgs = await listMessages(conversationId);
+          const inOrder = msgs.filter(m => m.createdAt < untilCreatedAt);
+          return inOrder.map(m => ({ role: m.role, parts: m.parts || [] }));
+        }
+
+        async function fileToInlineData(file) {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result.split(',')[1];
+              resolve({ mimeType: file.type, data: base64 });
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+
+        async function sendMessage() {
+          const input = document.getElementById('messageInput');
+          const sendBtn = document.getElementById('sendButton');
+          const stopBtn = document.getElementById('stopButton');
+          const text = input.value.trim();
+          if (!text && !selectedMedia) return;
+
+          sendBtn.disabled = true;
+          stopBtn.style.display = 'inline-block';
+
+          const cid = await createConversationIfNeeded();
+          const now = Date.now();
+
+          const userParts = [];
+          if (text) userParts.push({ text });
+          if (selectedMedia) {
+            const inlineData = await fileToInlineData(selectedMedia);
+            userParts.push({ inlineData });
+          }
+
+          const userMsg = { id: uid(), conversationId: cid, role: 'user', parts: userParts, createdAt: now, status: 'done' };
+          await addMessage(userMsg);
+
+          const asstMsg = { id: uid(), conversationId: cid, role: 'model', parts: [{ text: '' }], createdAt: now + 1, status: 'streaming' };
+          await addMessage(asstMsg);
+          await refreshTranscript();
+
+          const config = getCurrentConfig();
+          const model = document.getElementById('modelSelect').value;
+          const systemInstruction = getSystemInstructionString() || undefined;
+
+          const history = await buildHistory(cid, asstMsg.createdAt);
+          const payload = { model, config, systemInstruction, history, message: { role: 'user', parts: userParts } };
+
+          const controller = new AbortController();
+          currentController = controller;
+
+          try {
+            const resp = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              signal: controller.signal
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+
+            let buffer = '';
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value);
+              buffer += chunk;
+
+              const sentinelStart = buffer.indexOf('[[SONATA_FINAL]]');
+              if (sentinelStart !== -1) {
+                const textPart = buffer.slice(0, sentinelStart);
+                await updateMessage(asstMsg.id, { parts: [{ text: textPart }], status: 'done' });
+                await refreshTranscript();
+                break;
+              } else {
+                await updateMessage(asstMsg.id, { parts: [{ text: buffer }], status: 'streaming' });
+                await refreshTranscript();
+              }
+            }
+
+            await autoTitleIfNeeded(cid, (await db.messages.get(asstMsg.id)).parts?.[0]?.text || '');
+
+          } catch (e) {
+            await updateMessage(asstMsg.id, { status: 'error' });
+          } finally {
+            currentController = null;
+            sendBtn.disabled = false;
+            stopBtn.style.display = 'none';
+            input.value = '';
+            if (selectedMedia) clearMedia();
+            await refreshTranscript();
+          }
+        }
+
+        async function stopStreaming() {
+          if (currentController) { currentController.abort(); currentController = null; }
+          document.getElementById('stopButton').style.display = 'none';
+        }
+
+        async function openEditMessage(messageId) {
+          const msg = await db.messages.get(messageId);
+          if (!msg || msg.role !== 'user') return;
+          const original = (msg.parts?.find(p => p.text)?.text) || '';
+          const edited = prompt('Edit your message:', original);
+          if (edited === null) return;
+
+          let originalText = msg.originalText || original;
+          const parts = (msg.parts || []).filter(p => !p.text);
+          if (edited.trim()) parts.unshift({ text: edited.trim() });
+
+          await updateMessage(msg.id, { parts, editedAt: Date.now(), originalText });
+          await deleteMessagesAfter(msg.conversationId, msg.createdAt);
+          await refreshTranscript();
+
+          const sendBtn = document.getElementById('sendButton');
+          const stopBtn = document.getElementById('stopButton');
+          sendBtn.disabled = true;
+          stopBtn.style.display = 'inline-block';
+
+          const cid = msg.conversationId;
+          const now = Date.now();
+          const asstMsg = { id: uid(), conversationId: cid, role: 'model', parts: [{ text: '' }], createdAt: now + 1, status: 'streaming' };
+          await addMessage(asstMsg);
+          await refreshTranscript();
+
+          const config = getCurrentConfig();
+          const model = document.getElementById('modelSelect').value;
+          const systemInstruction = getSystemInstructionString() || undefined;
+
+          const history = await buildHistory(cid, msg.createdAt);
+          const payload = { model, config, systemInstruction, history, message: { role: 'user', parts } };
+
+          const controller = new AbortController();
+          currentController = controller;
+
+          try {
+            const resp = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              signal: controller.signal
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value);
+              buffer += chunk;
+              const sentinelStart = buffer.indexOf('[[SONATA_FINAL]]');
+              if (sentinelStart !== -1) {
+                const textPart = buffer.slice(0, sentinelStart);
+                await updateMessage(asstMsg.id, { parts: [{ text: textPart }], status: 'done' });
+                await refreshTranscript();
+                break;
+              } else {
+                await updateMessage(asstMsg.id, { parts: [{ text: buffer }], status: 'streaming' });
+                await refreshTranscript();
+              }
+            }
+            await autoTitleIfNeeded(cid, (await db.messages.get(asstMsg.id)).parts?.[0]?.text || '');
+          } catch (e) {
+            await updateMessage(asstMsg.id, { status: 'error' });
+          } finally {
+            currentController = null;
+            sendBtn.disabled = false;
+            stopBtn.style.display = 'none';
+            await refreshTranscript();
+          }
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+          await ensureActiveConversation();
+          await refreshTranscript();
         });
 
         // Allow sending with Enter key
