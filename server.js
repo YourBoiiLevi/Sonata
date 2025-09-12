@@ -58,6 +58,8 @@ app.post('/api/chat', async (req, res) => {
 
 When analyzing media files (images, videos, audio), describe what you see/hear and answer questions clearly.`;
 
+    baseSystemInstruction += '\n\n## Diagram and code fence tags\n- Mermaid: use mermaid\n- GraphViz/DOT: use dot, graphviz, or viz\n- Raw SVG: use svg\n- D3 Graphviz: use d3-graphviz (preferred for DOT via D3)\n- D3: use d3 (only when explicitly asked)\n\nExamples:\n```mermaid\ngraph TD\n  A-->B\n```\n```dot\ndigraph G { a->b }\n```\n```svg\n<svg viewBox=\"0 0 10 10\"><circle cx=\"5\" cy=\"5\" r=\"4\"/></svg>\n```\n';
+
     if (!systemInstruction) {
       if (config && config.customInstructions && config.personalityPreset === 'custom') {
         baseSystemInstruction = config.customInstructions + '\n\n' + baseSystemInstruction;
