@@ -70,6 +70,10 @@
         }
         .theme-dark [data-code-pane][data-theme="light"]{ display:none; }
         .theme-dark [data-code-pane][data-theme="dark"]{ display:block; }
+        #transcript[data-code-theme="dark"] [data-code-pane][data-theme="light"]{ display:none; }
+        #transcript[data-code-theme="dark"] [data-code-pane][data-theme="dark"]{ display:block; }
+        #transcript[data-code-theme="light"] [data-code-pane][data-theme="light"]{ display:block; }
+        #transcript[data-code-theme="light"] [data-code-pane][data-theme="dark"]{ display:none; }
         [data-diagram-container]{ border:1px solid #e5e7eb; border-radius:6px; margin:10px 0; }
         [data-diagram-header]{ display:flex; align-items:center; justify-content:space-between; font-size:12px; background:#f8fafc; padding:6px 8px; border-bottom:1px solid #e5e7eb; color:#334155; }
         [data-diagram-header] [data-diagram-copy]{ background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; border-radius:4px; padding:2px 8px; cursor:pointer; }
@@ -175,6 +179,7 @@
 
     <script type="module">
         import { streamingRenderer } from "./streaming-markdown.js";
+        import { setShikiThemes } from "./shiki-highlighter.js";
         let selectedMedia = null;
         let currentController = null;
 
@@ -627,12 +632,39 @@
 
         function openChatsModal(){ document.getElementById('chatsModal').style.display='block'; appState.ui.chatsTab='chats'; document.getElementById('tabChatsBtn').classList.add('active'); document.getElementById('tabTrashBtn').classList.remove('active'); refreshChatsPanel(); }
         function closeChatsModal(){ document.getElementById('chatsModal').style.display='none'; }
-        function openSettingsModal(){ document.getElementById('settingsModal').style.display='block'; buildSettingsBody(); }
+        function openSettingsModal(){ document.getElementById('settingsModal').style.display='block'; buildSettingsBody(); attachThemeControlToSettings(); }
         function closeSettingsModal(){ document.getElementById('settingsModal').style.display='none'; }
+        function resetToDefaults(){
+          const tEl = document.getElementById('temperatureSlider'); if(tEl){ tEl.value = 1.0; document.getElementById('temperatureValue').textContent='1.0'; }
+          const pEl = document.getElementById('topPSlider'); if(pEl){ pEl.value = 0.95; document.getElementById('topPValue').textContent='0.95'; }
+          const kEl = document.getElementById('topKSlider'); if(kEl){ kEl.value = 40; document.getElementById('topKValue').textContent='40'; }
+          const prEl = document.getElementById('presencePenaltySlider'); if(prEl){ prEl.value = 0; document.getElementById('presencePenaltyValue').textContent='0.0'; }
+          const frEl = document.getElementById('frequencyPenaltySlider'); if(frEl){ frEl.value = 0; document.getElementById('frequencyPenaltyValue').textContent='0.0'; }
+          const seed = document.getElementById('seedInput'); if(seed){ seed.value=''; }
+          const resp = document.getElementById('responseLogprobs'); const logRow=document.getElementById('logprobsRow'); if(resp){ resp.checked=false; if(logRow) logRow.style.display='none'; }
+          const preset = document.getElementById('personalityPreset'); if(preset){ preset.value=''; }
+          const custom = document.getElementById('customInstructions'); if(custom){ custom.value=''; }
+          handlePersonalityChange();
+          const themeSel = document.getElementById('codeThemeSelect'); if(themeSel){ themeSel.value='ayu-dark'; setGlobalCodeTheme('ayu-dark'); }
+        }
 
         function buildSettingsBody(){
           const body=document.getElementById('settingsBody'); if (!body) return; body.innerHTML='';
           const section=(title, innerHTML)=>{ const div=document.createElement('div'); div.style.marginBottom='16px'; div.innerHTML=`<h4>${title}</h4>`+innerHTML; body.appendChild(div); };
+          // Code Theme selector
+          const themeRow = `<div class="param-row"><label for="codeThemeSelect">Code Theme:</label>
+            <select id="codeThemeSelect" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+              <option value="ayu-dark">Ayu Dark</option>
+              <option value="vitesse-dark">Vitesse Dark</option>
+              <option value="github-dark">GitHub Dark</option>
+              <option value="github-light">GitHub Light</option>
+              <option value="monokai">Monokai</option>
+            </select>
+            <div class="param-help">Applies to all code blocks across chats</div>
+          </div>`;
+          section('Code Highlighting', themeRow);
+          setTimeout(()=>{ const sel=document.getElementById('codeThemeSelect'); if (sel){ sel.value = window.SONATA_CODE_THEME || localStorage.getItem('sonata.shikiTheme') || 'ayu-dark'; sel.onchange = ()=> setGlobalCodeTheme(sel.value); } }, 0);
+
           section('Reasoning', `<div class="row"><label class="toggle-switch"><input type="checkbox" id="reasoningToggle" checked><span class="slider"></span></label><span id="reasoningModeLabel">Dynamic</span></div><div id="reasoningPresets" style="display:none; margin-top:10px;"><div style="display:flex; gap:8px; margin-bottom:10px;"><button class="preset-btn" data-value="0">None</button><button class="preset-btn" data-value="low">Low</button><button class="preset-btn" data-value="medium">Medium</button><button class="preset-btn active" data-value="high">High</button></div><div id="reasoningInfo" style="font-size:12px; color:#666; margin-top:5px;"></div></div>`);
           section('Sampling Parameters', `<div class="param-row"><label for="temperatureSlider">Temperature:</label><div class="row"><input type="range" id="temperatureSlider" min="0" max="2" step="0.1" value="1.0"><span id="temperatureValue">1.0</span></div></div><div class="param-row"><label for="topPSlider">Top-P:</label><div class="row"><input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.95"><span id="topPValue">0.95</span></div></div><div class="param-row"><label for="topKSlider">Top-K:</label><div class="row"><input type="range" id="topKSlider" min="1" max="40" step="1" value="40"><span id="topKValue">40</span></div></div><div class="param-row"><label for="seedInput">Seed:</label><input type="number" id="seedInput" placeholder="Random" style="width:100px;"></div>`);
           section('Penalty Parameters', `<div class="param-row"><label for="presencePenaltySlider">Presence Penalty:</label><div class="row"><input type="range" id="presencePenaltySlider" min="-2" max="2" step="0.1" value="0"><span id="presencePenaltyValue">0.0</span></div></div><div class="param-row"><label for="frequencyPenaltySlider">Frequency Penalty:</label><div class="row"><input type="range" id="frequencyPenaltySlider" min="-2" max="2" step="0.1" value="0"><span id="frequencyPenaltyValue">0.0</span></div></div>`);
@@ -668,7 +700,7 @@
           }
         }
 
-        function handlePersonalityChange(){ const preset=document.getElementById('personalityPreset').value; const customRow=document.getElementById('customInstructionsRow'); if (preset==='custom'){ customRow.style.display='block'; } else { customRow.style.display='none'; } localStorage.setItem('personalityPreset', preset); localStorage.setItem('customInstructions', document.getElementById('customInstructions').value); }
+        function handlePersonalityChange(){ const preset=document.getElementById('personalityPreset').value; const customRow=document.getElementById('customInstructionsRow'); if (preset==='custom'){ customRow.style.display='block'; } else { customRow.style.display='none'; } try{ localStorage.setItem('personalityPreset', preset); localStorage.setItem('customInstructions', document.getElementById('customInstructions').value);}catch{} }
 
         document.addEventListener('DOMContentLoaded', async ()=>{
           document.getElementById('mediaInput').addEventListener('change', previewMedia);
@@ -685,12 +717,37 @@
           document.getElementById('messageInput').addEventListener('keypress', (e)=>{ if (e.key==='Enter'){ sendMessage(); } });
           window.addEventListener('click', function(event){ const sm=document.getElementById('settingsModal'); const cm=document.getElementById('chatsModal'); if (event.target===sm) closeSettingsModal(); if (event.target===cm) closeChatsModal(); });
 
+          initCodeTheme();
           updateReasoningUI();
           await startupPurge();
           await ensureActiveConversation();
           await refreshTranscript();
         });
-        window.openSettingsModal = openSettingsModal; window.closeSettingsModal = closeSettingsModal; window.openChatsModal = openChatsModal; window.closeChatsModal = closeChatsModal;
+
+        function setGlobalCodeTheme(theme){
+          try {
+            localStorage.setItem('sonata.shikiTheme', theme);
+          } catch {}
+          window.SONATA_CODE_THEME = theme;
+          window.SONATA_SHIKI_THEMES = [theme, theme];
+          setShikiThemes([theme, theme]);
+          // Flip transcript attribute for pane switching
+          const isDark = /dark|vitesse|ayu/i.test(theme);
+          const t = document.getElementById('transcript'); if (t) t.setAttribute('data-code-theme', isDark ? 'dark' : 'light');
+          // Bump theme version so code blocks re-render on next update
+          window.SONATA_SHIKI_VERSION = (window.SONATA_SHIKI_VERSION||0) + 1;
+          // Refresh transcript to apply across all messages
+          refreshTranscript();
+        }
+
+        function initCodeTheme(){
+          const saved = localStorage.getItem('sonata.shikiTheme') || 'ayu-dark';
+          setGlobalCodeTheme(saved);
+        }
+
+        window.__sonataSetCodeTheme = setGlobalCodeTheme;
+        window.openSettingsModal = openSettingsModal; window.closeSettingsModal = closeSettingsModal; window.openChatsModal = openChatsModal; window.closeChatsModal = closeChatsModal; window.resetToDefaults = resetToDefaults;
+
     </script>
 </body>
 </html>

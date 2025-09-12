@@ -63,6 +63,7 @@ export async function renderMermaid(chart, container, opts = {}) {
     lastValidMap.set(svgWrap, state);
     spinner.style.display = 'none';
   } catch (e) {
+    console.warn('[Sonata][Mermaid] render error', e);
     if (state.hasSuccess && state.svg) {
       svgWrap.innerHTML = state.svg; // keep last good
       spinner.style.display = 'none';

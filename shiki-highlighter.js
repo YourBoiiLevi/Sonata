@@ -7,6 +7,7 @@
 let highlighterPromise = null;
 let loadedLangs = new Set();
 let themePair = null; // [light, dark]
+const THEME_OPTIONS = ['ayu-dark','vitesse-dark','github-dark','github-light','monokai'];
 
 function getThemes() {
   if (Array.isArray(window.SONATA_SHIKI_THEMES) && window.SONATA_SHIKI_THEMES.length === 2) return window.SONATA_SHIKI_THEMES;
@@ -17,6 +18,13 @@ function getThemes() {
     if (parts.length === 2) return parts;
   }
   return ['github-light', 'github-dark'];
+}
+
+export function setShikiThemes(pair){
+  window.SONATA_SHIKI_THEMES = pair;
+  themePair = pair;
+  highlighterPromise = null; // force re-init on next use
+  loadedLangs = new Set();
 }
 
 async function getHighlighter() {
@@ -88,8 +96,17 @@ export async function renderCodeBlock({ code, lang, preClassName }) {
   const header = document.createElement('div');
   header.setAttribute('data-code-block-header', '');
   const label = document.createElement('span'); label.textContent = (lang || 'text').toUpperCase();
+  const tools = document.createElement('div'); tools.style.display='flex'; tools.style.gap='6px'; tools.style.alignItems='center';
+  const themeSelect = document.createElement('select'); themeSelect.setAttribute('data-code-theme-select','');
+  THEME_OPTIONS.forEach(t=>{ const opt=document.createElement('option'); opt.value=t; opt.textContent=t; themeSelect.appendChild(opt); });
+  const currentTheme = window.SONATA_CODE_THEME || (Array.isArray(window.SONATA_SHIKI_THEMES)?window.SONATA_SHIKI_THEMES[0]:'github-dark');
+  themeSelect.value = currentTheme;
+  themeSelect.addEventListener('change', ()=>{
+    if (typeof window.__sonataSetCodeTheme === 'function') window.__sonataSetCodeTheme(themeSelect.value);
+  });
   const copy = document.createElement('button'); copy.type = 'button'; copy.setAttribute('data-code-copy', ''); copy.textContent = 'Copy';
-  header.appendChild(label); header.appendChild(copy);
+  tools.appendChild(themeSelect); tools.appendChild(copy);
+  header.appendChild(label); header.appendChild(tools);
 
   const panes = document.createElement('div'); panes.setAttribute('data-code-panes', '');
   const paneLight = document.createElement('div'); paneLight.setAttribute('data-code-pane', ''); paneLight.setAttribute('data-theme', 'light');

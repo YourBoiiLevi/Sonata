@@ -1,14 +1,12 @@
 // Streaming Markdown renderer for Sonata (vanilla, Streamdown-inspired)
 // - Parses incoming text buffer into stable blocks (md, code, diagrams)
 // - Diffs and only updates changed blocks per chunk
-// - Dispatches to Shiki, Mermaid, GraphViz (viz), and optional D3 sandbox
+// - Dispatches to Shiki for code and Mermaid for diagrams; DOT/D3 temporarily disabled
 
 import { marked } from 'https://cdn.jsdelivr.net/npm/marked@9.1.2/lib/marked.esm.js';
 import { sanitizeHTML } from './dom-sanitize.js';
-import { renderCodeBlock, highlightToDualHTML } from './shiki-highlighter.js';
+import { renderCodeBlock } from './shiki-highlighter.js';
 import { renderMermaid } from './mermaid-renderer.js';
-import { renderDot, supportsGraphviz } from './viz-renderer.js';
-import { isD3Enabled, renderD3Graphviz } from './d3-renderer.js';
 
 const stateByContainer = new WeakMap();
 
@@ -18,6 +16,8 @@ function preProcessInline(text) {
     .replace(/\[\[(.*?)\]\]/g, '<kbd class="kbd">$1</kbd>')
     .replace(/==(.*?)==/g, '<mark>$1</mark>');
 }
+
+function getThemeVersion(){ return window.SONATA_SHIKI_VERSION || 0; }
 
 function parseBlocks(src) {
   const lines = (src || '').split('\n');
@@ -46,14 +46,10 @@ function parseBlocks(src) {
       const text = code.join('\n');
       if (language === 'mermaid') {
         blocks.push({ kind: 'diagram', engine: 'mermaid', lang: 'mermaid', code: text, closed });
-      } else if (supportsGraphviz(language)) {
-        blocks.push({ kind: 'diagram', engine: 'viz', lang: language, code: text, closed });
       } else if (language === 'svg') {
         blocks.push({ kind: 'diagram', engine: 'svg', lang: 'svg', code: text, closed });
-      } else if (language === 'd3-graphviz' || language === 'd3') {
-        blocks.push({ kind: 'diagram', engine: language === 'd3-graphviz' ? 'd3-graphviz' : 'd3', lang: language, code: text, closed });
       } else {
-        blocks.push({ kind: 'code', lang: language || 'text', code: text, closed });
+        blocks.push({ kind: 'code', lang: language || 'text', code: text, closed, tver: getThemeVersion() });
       }
       continue;
     }
@@ -101,20 +97,11 @@ async function renderCodeBlockInto(el, block, preClassName) {
 async function renderDiagramBlockInto(el, block) {
   if (block.engine === 'mermaid') {
     await renderMermaid(block.code, el, { uniqueId: el.dataset.uid });
-  } else if (block.engine === 'viz') {
-    await renderDot(block.code, el, { lang: block.lang, label: 'graphviz' });
   } else if (block.engine === 'svg') {
     // Raw SVG (sanitized)
     const clean = await sanitizeHTML(block.code);
     el.setAttribute('data-diagram-container', '');
     el.innerHTML = clean;
-  } else if (block.engine === 'd3-graphviz') {
-    await renderD3Graphviz(block.code, el, {});
-  } else if (block.engine === 'd3') {
-    // For now, prefer graphviz path; if enabled later, sandboxed code path can be added
-    if (!isD3Enabled()) {
-      el.innerHTML = '<div style="font-size:12px;color:#666">D3 is disabled (SONATA_ENABLE_D3=false)</div>';
-    }
   }
 }
 
