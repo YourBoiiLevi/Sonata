@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gemini API Chat</title>
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.2/marked.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
@@ -59,6 +59,25 @@
         .conv-title { border:1px solid transparent; padding:4px 6px; border-radius:4px; }
         .conv-title[contenteditable="true"] { border-color:#ddd; background:#f9fafb; }
         .search-disabled { opacity:.6; pointer-events:none; }
+        /* Code block + diagram styling for Shiki/Mermaid/Viz */
+        [data-code-block-container]{ border:1px solid #e5e7eb; border-radius:6px; overflow:hidden; margin:10px 0; }
+        [data-code-block-header]{ display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; background:#f8fafc; color:#334155; padding:6px 8px; border-bottom:1px solid #e5e7eb; }
+        [data-code-block-header] [data-code-copy]{ background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; border-radius:4px; padding:2px 8px; cursor:pointer; }
+        [data-code-pane][data-theme="dark"]{ display:none; }
+        @media (prefers-color-scheme: dark){
+          [data-code-pane][data-theme="light"]{ display:none; }
+          [data-code-pane][data-theme="dark"]{ display:block; }
+        }
+        .theme-dark [data-code-pane][data-theme="light"]{ display:none; }
+        .theme-dark [data-code-pane][data-theme="dark"]{ display:block; }
+        #transcript[data-code-theme="dark"] [data-code-pane][data-theme="light"]{ display:none; }
+        #transcript[data-code-theme="dark"] [data-code-pane][data-theme="dark"]{ display:block; }
+        #transcript[data-code-theme="light"] [data-code-pane][data-theme="light"]{ display:block; }
+        #transcript[data-code-theme="light"] [data-code-pane][data-theme="dark"]{ display:none; }
+        [data-diagram-container]{ border:1px solid #e5e7eb; border-radius:6px; margin:10px 0; }
+        [data-diagram-header]{ display:flex; align-items:center; justify-content:space-between; font-size:12px; background:#f8fafc; padding:6px 8px; border-bottom:1px solid #e5e7eb; color:#334155; }
+        [data-diagram-header] [data-diagram-copy]{ background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; border-radius:4px; padding:2px 8px; cursor:pointer; }
+        [data-diagram-spinner]{ font-size:12px; color:#64748b; padding:8px; }
     </style>
 </head>
 <body>
@@ -158,7 +177,9 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { streamingRenderer } from "./streaming-markdown.js";
+        import { setShikiThemes } from "./shiki-highlighter.js";
         let selectedMedia = null;
         let currentController = null;
 
@@ -327,7 +348,7 @@
           return html;
         }
         function renderMath(el){ if (window.renderMathInElement) renderMathInElement(el,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}]}); }
-        function highlightCode(el){ if (window.Prism) Prism.highlightAllUnder(el); }
+        function highlightCode(el){ /* replaced by Shiki */ }
 
         function fileToInlineData(file) { return new Promise((resolve)=>{ const r=new FileReader(); r.onload=()=>{ const base64=r.result.split(',')[1]; resolve({ mimeType:file.type, data:base64 }); }; r.readAsDataURL(file); }); }
 
@@ -514,66 +535,68 @@
         function collapseWhitespace(s){ return (s||'').replace(/\s+/g,' ').trim(); }
 
         function renderTranscriptUI(messages){
-          const el=document.getElementById('transcript'); el.innerHTML='';
-          messages.forEach(msg=>{
-            const bubble=document.createElement('div'); bubble.className='bubble '+(msg.role==='user'?'user':'model');
-            const controls=document.createElement('div'); controls.className='controls';
-            const content=document.createElement('div');
+          const el = document.getElementById('transcript');
+          const existing = new Map(Array.from(el.querySelectorAll('[data-msg-id]')).map(n=>[n.getAttribute('data-msg-id'), n]));
+          const order = [];
+          messages.forEach(msg => {
+            let bubble = existing.get(msg.id);
+            if (!bubble) {
+              bubble = document.createElement('div');
+              bubble.className = 'bubble ' + (msg.role==='user'?'user':'model');
+              bubble.setAttribute('data-msg-id', msg.id);
+              const content = document.createElement('div'); content.setAttribute('data-msg-content','');
+              const controls = document.createElement('div'); controls.className='controls'; controls.setAttribute('data-msg-controls','');
+              bubble.appendChild(content); bubble.appendChild(controls);
+              el.appendChild(bubble);
+            } else {
+              bubble.className = 'bubble ' + (msg.role==='user'?'user':'model');
+            }
+            const content = bubble.querySelector('[data-msg-content]');
+            const controls = bubble.querySelector('[data-msg-controls]');
+            controls.innerHTML = '';
 
             const editState = appState.ui.editing[msg.id];
+            const textPart = (msg.parts && msg.parts.find(p=>p.text)) ? msg.parts.find(p=>p.text).text : '';
 
             if (editState && editState.mode==='user'){
+              content.innerHTML='';
               const ta=document.createElement('textarea'); ta.className='edit-area'; ta.value=editState.text||''; ta.oninput=(e)=>{ editState.text=e.target.value; };
               const attWrap=document.createElement('div'); attWrap.className='att-list';
               const listLabel=document.createElement('div'); listLabel.textContent='Attachments'; attWrap.appendChild(listLabel);
-              editState.attachments.forEach((att,idx)=>{
-                const row=document.createElement('div'); row.className='att-item';
-                row.innerHTML = `<span>${att.inlineData?.mimeType || att.file?.name || 'Attachment'}</span>`;
-                const rm=document.createElement('button'); rm.className='small-btn'; rm.textContent= att.removed? 'Undo' : 'Remove'; rm.onclick=()=>{ att.removed=!att.removed; renderTranscriptUI(messages); };
-                row.appendChild(rm); attWrap.appendChild(row);
-              });
+              editState.attachments.forEach((att)=>{ const row=document.createElement('div'); row.className='att-item'; row.innerHTML = `<span>${att.inlineData?.mimeType || att.file?.name || 'Attachment'}</span>`; const rm=document.createElement('button'); rm.className='small-btn'; rm.textContent= att.removed? 'Undo' : 'Remove'; rm.onclick=()=>{ att.removed=!att.removed; renderTranscriptUI(messages); }; row.appendChild(rm); attWrap.appendChild(row); });
               const addLabel=document.createElement('div'); addLabel.style.marginTop='6px'; addLabel.textContent='Add attachment:'; attWrap.appendChild(addLabel);
-              const addInput=document.createElement('input'); addInput.type='file'; addInput.onchange=(e)=>{ const file=e.target.files[0]; if(file){ editState.attachments.push({ file }); renderTranscriptUI(messages); } };
-              attWrap.appendChild(addInput);
+              const addInput=document.createElement('input'); addInput.type='file'; addInput.onchange=(e)=>{ const file=e.target.files[0]; if(file){ editState.attachments.push({ file }); renderTranscriptUI(messages); } }; attWrap.appendChild(addInput);
               const warn=document.createElement('div'); warn.className='warning'; warn.textContent='Saving will remove responses after this point and regenerate.';
               const btnRow=document.createElement('div'); btnRow.style.marginTop='8px'; btnRow.style.display='flex'; btnRow.style.gap='8px';
-              const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{
-                const parts=[]; const textVal=ta.value; if(textVal.trim()) parts.push({ text: textVal });
-                for (const a of editState.attachments){ if (a.removed) continue; if (a.inlineData) parts.push({ inlineData: a.inlineData }); else if (a.file){ const data=await fileToInlineData(a.file); parts.push({ inlineData: data }); } }
-                await storage.updateMessage(msg.id,{ parts, editedAt: Date.now(), originalText: editState.originalText||msg.parts?.find(p=>p.text)?.text||'' });
-                await storage.deleteMessagesAfter(msg.conversationId, msg.createdAt); delete appState.ui.editing[msg.id]; const updated=await storage.getMessage(msg.id); await refreshTranscript(); await regenerateFromEditedUser(updated);
-              };
+              const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{ const parts=[]; const textVal=ta.value; if(textVal.trim()) parts.push({ text: textVal }); for (const a of editState.attachments){ if (a.removed) continue; if (a.inlineData) parts.push({ inlineData: a.inlineData }); else if (a.file){ const data=await fileToInlineData(a.file); parts.push({ inlineData: data }); } } await storage.updateMessage(msg.id,{ parts, editedAt: Date.now(), originalText: editState.originalText||msg.parts?.find(p=>p.text)?.text||'' }); await storage.deleteMessagesAfter(msg.conversationId, msg.createdAt); delete appState.ui.editing[msg.id]; const updated=await storage.getMessage(msg.id); await refreshTranscript(); await regenerateFromEditedUser(updated); };
               const cancel=document.createElement('button'); cancel.className='small-btn'; cancel.textContent='Cancel'; cancel.onclick=()=>{ delete appState.ui.editing[msg.id]; renderTranscriptUI(messages); };
               btnRow.appendChild(save); btnRow.appendChild(cancel);
               content.appendChild(ta); content.appendChild(attWrap); content.appendChild(warn); content.appendChild(btnRow);
             } else if (editState && editState.mode==='assistant'){
+              content.innerHTML='';
               const ta=document.createElement('textarea'); ta.className='edit-area'; ta.value=(msg.parts?.find(p=>p.text)?.text)||''; ta.oninput=(e)=>{ editState.text=e.target.value; };
               const btnRow=document.createElement('div'); btnRow.style.marginTop='8px'; btnRow.style.display='flex'; btnRow.style.gap='8px';
               const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{ await storage.updateMessage(msg.id,{ parts:[{ text: ta.value }], editedAt: Date.now() }); delete appState.ui.editing[msg.id]; await refreshTranscript(); };
               const cancel=document.createElement('button'); cancel.className='small-btn'; cancel.textContent='Cancel'; cancel.onclick=()=>{ delete appState.ui.editing[msg.id]; renderTranscriptUI(messages); };
               btnRow.appendChild(save); btnRow.appendChild(cancel); content.appendChild(ta); content.appendChild(btnRow);
             } else {
-              const textPart = (msg.parts && msg.parts.find(p=>p.text)) ? msg.parts.find(p=>p.text).text : '';
               if (msg.role==='user'){
-                const t=document.createElement('div'); t.innerHTML=escapeHTML(textPart||''); content.appendChild(t);
+                content.innerHTML=''; const t=document.createElement('div'); t.innerHTML=escapeHTML(textPart||''); content.appendChild(t);
                 if (msg.parts){ msg.parts.forEach(p=>{ if (p.inlineData){ const att=document.createElement('div'); att.style.fontSize='12px'; att.style.color='#555'; att.textContent=`Attachment: ${p.inlineData.mimeType}`; content.appendChild(att); } }); }
               } else {
-                const html=parseCustomMarkdown(textPart||''); content.innerHTML=html; highlightCode(content); renderMath(content);
-              }
-              const copyBtn=document.createElement('button'); copyBtn.className='small-btn'; copyBtn.textContent='Copy'; copyBtn.onclick=()=>{ const t=msg.parts?.map(p=>p.text||'').join('\n')||''; navigator.clipboard.writeText(t); };
-              controls.appendChild(copyBtn);
-              if (msg.role==='user'){
-                const ebtn=document.createElement('button'); ebtn.className='small-btn'; ebtn.textContent='Edit'; ebtn.onclick=()=>{ appState.ui.editing[msg.id] = { mode:'user', text: textPart||'', attachments: (msg.parts||[]).filter(p=>p.inlineData).map(p=>({ inlineData:p.inlineData, removed:false })), originalText: textPart||'' }; renderTranscriptUI(messages); };
-                controls.appendChild(ebtn);
-              } else {
-                const ebtn=document.createElement('button'); ebtn.className='small-btn'; ebtn.textContent='Edit'; ebtn.onclick=()=>{ appState.ui.editing[msg.id] = { mode:'assistant', text: textPart||'' }; renderTranscriptUI(messages); };
-                const rbtn=document.createElement('button'); rbtn.className='small-btn'; rbtn.textContent='Retry'; rbtn.disabled = msg.status==='streaming' || !!currentController; rbtn.onclick=()=>sendMessage({ retryForMessageId: msg.id });
-                controls.appendChild(ebtn); controls.appendChild(rbtn);
+                streamingRenderer.update(content, textPart || '');
               }
             }
-
-            bubble.appendChild(content); bubble.appendChild(controls); el.appendChild(bubble);
+            const copyBtn=document.createElement('button'); copyBtn.className='small-btn'; copyBtn.textContent='Copy'; copyBtn.onclick=()=>{ const t=msg.parts?.map(p=>p.text||'').join('\n')||''; navigator.clipboard.writeText(t); };
+            controls.appendChild(copyBtn);
+            if (msg.role==='user'){ const ebtn=document.createElement('button'); ebtn.className='small-btn'; ebtn.textContent='Edit'; ebtn.onclick=()=>{ appState.ui.editing[msg.id] = { mode:'user', text: textPart||'', attachments: (msg.parts||[]).filter(p=>p.inlineData).map(p=>({ inlineData:p.inlineData, removed:false })), originalText: textPart||'' }; renderTranscriptUI(messages); }; controls.appendChild(ebtn); }
+            else { const ebtn=document.createElement('button'); ebtn.className='small-btn'; ebtn.textContent='Edit'; ebtn.onclick=()=>{ appState.ui.editing[msg.id] = { mode:'assistant', text: textPart||'' }; renderTranscriptUI(messages); }; const rbtn=document.createElement('button'); rbtn.className='small-btn'; rbtn.textContent='Retry'; rbtn.disabled = msg.status==='streaming' || !!currentController; rbtn.onclick=()=>sendMessage({ retryForMessageId: msg.id }); controls.appendChild(ebtn); controls.appendChild(rbtn); }
+            order.push(msg.id);
           });
+          // Remove nodes not in order and reorder DOM to match messages
+          Array.from(el.querySelectorAll('[data-msg-id]')).forEach(node => { const id = node.getAttribute('data-msg-id'); if (!order.includes(id)) node.remove(); });
+          // Re-append in order
+          order.forEach(id => { const node = el.querySelector(`[data-msg-id="${id}"]`); if (node) el.appendChild(node); });
           el.scrollTop = el.scrollHeight;
         }
 
@@ -609,12 +632,39 @@
 
         function openChatsModal(){ document.getElementById('chatsModal').style.display='block'; appState.ui.chatsTab='chats'; document.getElementById('tabChatsBtn').classList.add('active'); document.getElementById('tabTrashBtn').classList.remove('active'); refreshChatsPanel(); }
         function closeChatsModal(){ document.getElementById('chatsModal').style.display='none'; }
-        function openSettingsModal(){ document.getElementById('settingsModal').style.display='block'; buildSettingsBody(); }
+        function openSettingsModal(){ document.getElementById('settingsModal').style.display='block'; buildSettingsBody(); attachThemeControlToSettings(); }
         function closeSettingsModal(){ document.getElementById('settingsModal').style.display='none'; }
+        function resetToDefaults(){
+          const tEl = document.getElementById('temperatureSlider'); if(tEl){ tEl.value = 1.0; document.getElementById('temperatureValue').textContent='1.0'; }
+          const pEl = document.getElementById('topPSlider'); if(pEl){ pEl.value = 0.95; document.getElementById('topPValue').textContent='0.95'; }
+          const kEl = document.getElementById('topKSlider'); if(kEl){ kEl.value = 40; document.getElementById('topKValue').textContent='40'; }
+          const prEl = document.getElementById('presencePenaltySlider'); if(prEl){ prEl.value = 0; document.getElementById('presencePenaltyValue').textContent='0.0'; }
+          const frEl = document.getElementById('frequencyPenaltySlider'); if(frEl){ frEl.value = 0; document.getElementById('frequencyPenaltyValue').textContent='0.0'; }
+          const seed = document.getElementById('seedInput'); if(seed){ seed.value=''; }
+          const resp = document.getElementById('responseLogprobs'); const logRow=document.getElementById('logprobsRow'); if(resp){ resp.checked=false; if(logRow) logRow.style.display='none'; }
+          const preset = document.getElementById('personalityPreset'); if(preset){ preset.value=''; }
+          const custom = document.getElementById('customInstructions'); if(custom){ custom.value=''; }
+          handlePersonalityChange();
+          const themeSel = document.getElementById('codeThemeSelect'); if(themeSel){ themeSel.value='ayu-dark'; setGlobalCodeTheme('ayu-dark'); }
+        }
 
         function buildSettingsBody(){
           const body=document.getElementById('settingsBody'); if (!body) return; body.innerHTML='';
           const section=(title, innerHTML)=>{ const div=document.createElement('div'); div.style.marginBottom='16px'; div.innerHTML=`<h4>${title}</h4>`+innerHTML; body.appendChild(div); };
+          // Code Theme selector
+          const themeRow = `<div class="param-row"><label for="codeThemeSelect">Code Theme:</label>
+            <select id="codeThemeSelect" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+              <option value="ayu-dark">Ayu Dark</option>
+              <option value="vitesse-dark">Vitesse Dark</option>
+              <option value="github-dark">GitHub Dark</option>
+              <option value="github-light">GitHub Light</option>
+              <option value="monokai">Monokai</option>
+            </select>
+            <div class="param-help">Applies to all code blocks across chats</div>
+          </div>`;
+          section('Code Highlighting', themeRow);
+          setTimeout(()=>{ const sel=document.getElementById('codeThemeSelect'); if (sel){ sel.value = window.SONATA_CODE_THEME || localStorage.getItem('sonata.shikiTheme') || 'ayu-dark'; sel.onchange = ()=> setGlobalCodeTheme(sel.value); } }, 0);
+
           section('Reasoning', `<div class="row"><label class="toggle-switch"><input type="checkbox" id="reasoningToggle" checked><span class="slider"></span></label><span id="reasoningModeLabel">Dynamic</span></div><div id="reasoningPresets" style="display:none; margin-top:10px;"><div style="display:flex; gap:8px; margin-bottom:10px;"><button class="preset-btn" data-value="0">None</button><button class="preset-btn" data-value="low">Low</button><button class="preset-btn" data-value="medium">Medium</button><button class="preset-btn active" data-value="high">High</button></div><div id="reasoningInfo" style="font-size:12px; color:#666; margin-top:5px;"></div></div>`);
           section('Sampling Parameters', `<div class="param-row"><label for="temperatureSlider">Temperature:</label><div class="row"><input type="range" id="temperatureSlider" min="0" max="2" step="0.1" value="1.0"><span id="temperatureValue">1.0</span></div></div><div class="param-row"><label for="topPSlider">Top-P:</label><div class="row"><input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.95"><span id="topPValue">0.95</span></div></div><div class="param-row"><label for="topKSlider">Top-K:</label><div class="row"><input type="range" id="topKSlider" min="1" max="40" step="1" value="40"><span id="topKValue">40</span></div></div><div class="param-row"><label for="seedInput">Seed:</label><input type="number" id="seedInput" placeholder="Random" style="width:100px;"></div>`);
           section('Penalty Parameters', `<div class="param-row"><label for="presencePenaltySlider">Presence Penalty:</label><div class="row"><input type="range" id="presencePenaltySlider" min="-2" max="2" step="0.1" value="0"><span id="presencePenaltyValue">0.0</span></div></div><div class="param-row"><label for="frequencyPenaltySlider">Frequency Penalty:</label><div class="row"><input type="range" id="frequencyPenaltySlider" min="-2" max="2" step="0.1" value="0"><span id="frequencyPenaltyValue">0.0</span></div></div>`);
@@ -650,7 +700,7 @@
           }
         }
 
-        function handlePersonalityChange(){ const preset=document.getElementById('personalityPreset').value; const customRow=document.getElementById('customInstructionsRow'); if (preset==='custom'){ customRow.style.display='block'; } else { customRow.style.display='none'; } localStorage.setItem('personalityPreset', preset); localStorage.setItem('customInstructions', document.getElementById('customInstructions').value); }
+        function handlePersonalityChange(){ const preset=document.getElementById('personalityPreset').value; const customRow=document.getElementById('customInstructionsRow'); if (preset==='custom'){ customRow.style.display='block'; } else { customRow.style.display='none'; } try{ localStorage.setItem('personalityPreset', preset); localStorage.setItem('customInstructions', document.getElementById('customInstructions').value);}catch{} }
 
         document.addEventListener('DOMContentLoaded', async ()=>{
           document.getElementById('mediaInput').addEventListener('change', previewMedia);
@@ -667,11 +717,37 @@
           document.getElementById('messageInput').addEventListener('keypress', (e)=>{ if (e.key==='Enter'){ sendMessage(); } });
           window.addEventListener('click', function(event){ const sm=document.getElementById('settingsModal'); const cm=document.getElementById('chatsModal'); if (event.target===sm) closeSettingsModal(); if (event.target===cm) closeChatsModal(); });
 
+          initCodeTheme();
           updateReasoningUI();
           await startupPurge();
           await ensureActiveConversation();
           await refreshTranscript();
         });
+
+        function setGlobalCodeTheme(theme){
+          try {
+            localStorage.setItem('sonata.shikiTheme', theme);
+          } catch {}
+          window.SONATA_CODE_THEME = theme;
+          window.SONATA_SHIKI_THEMES = [theme, theme];
+          setShikiThemes([theme, theme]);
+          // Flip transcript attribute for pane switching
+          const isDark = /dark|vitesse|ayu/i.test(theme);
+          const t = document.getElementById('transcript'); if (t) t.setAttribute('data-code-theme', isDark ? 'dark' : 'light');
+          // Bump theme version so code blocks re-render on next update
+          window.SONATA_SHIKI_VERSION = (window.SONATA_SHIKI_VERSION||0) + 1;
+          // Refresh transcript to apply across all messages
+          refreshTranscript();
+        }
+
+        function initCodeTheme(){
+          const saved = localStorage.getItem('sonata.shikiTheme') || 'ayu-dark';
+          setGlobalCodeTheme(saved);
+        }
+
+        window.__sonataSetCodeTheme = setGlobalCodeTheme;
+        window.openSettingsModal = openSettingsModal; window.closeSettingsModal = closeSettingsModal; window.openChatsModal = openChatsModal; window.closeChatsModal = closeChatsModal; window.resetToDefaults = resetToDefaults;
+
     </script>
 </body>
 </html>

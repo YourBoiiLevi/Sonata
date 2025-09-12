@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>D3 Sandbox</title>
+  <style>html,body{margin:0;padding:0} #root{display:block}</style>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@hpcc-js/wasm@2.16.2/dist/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-graphviz@5/dist/d3-graphviz.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    (function(){
+      window.parent && window.parent.postMessage({ type: 'd3-ready' }, '*');
+      const root = d3.select('#root');
+      window.addEventListener('message', async (ev) => {
+        const data = ev.data || {};
+        if (data.type === 'render-dot') {
+          const id = data.id;
+          try {
+            const holder = root.append('div');
+            // Render to a new container to avoid flicker; return the SVG markup
+            await holder.graphviz().renderDot(data.dot);
+            const svgEl = holder.select('svg').node();
+            const svg = svgEl ? svgEl.outerHTML : '';
+            holder.remove();
+            window.parent && window.parent.postMessage({ type: 'd3-result', id, ok: true, svg }, '*');
+          } catch (e) {
+            window.parent && window.parent.postMessage({ type: 'd3-result', id, ok: false, error: String(e) }, '*');
+          }
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
