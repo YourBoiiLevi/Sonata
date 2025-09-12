@@ -310,12 +310,12 @@
             });
           },
           async listConversations() {
-            const all = await db.conversations.where('deletedAt').equals(null).toArray();
-            return all.filter(c=>!c.private).sort((a,b)=> (b.pinned?1:0)-(a.pinned?1:0) || (b.updatedAt - a.updatedAt));
+            const all = await db.conversations.toArray();
+            return all.filter(c => !c.private && (c.deletedAt == null)).sort((a,b)=> (b.pinned?1:0)-(a.pinned?1:0) || (b.updatedAt - a.updatedAt));
           },
           async listTrash() {
-            const all = await db.conversations.where('deletedAt').notEqual(null).toArray();
-            return all.sort((a,b)=> (b.deletedAt||0)-(a.deletedAt||0));
+            const all = await db.conversations.toArray();
+            return all.filter(c => c.deletedAt != null).sort((a,b)=> (b.deletedAt||0)-(a.deletedAt||0));
           }
         };
 
@@ -632,7 +632,23 @@
           const savedPreset = localStorage.getItem('personalityPreset'); if (savedPreset) document.getElementById('personalityPreset').value=savedPreset; const savedCustom = localStorage.getItem('customInstructions'); if (savedCustom) document.getElementById('customInstructions').value = savedCustom; handlePersonalityChange();
         }
 
-        function updateReasoningUI(){ const modelSelect=document.getElementById('modelSelect'); const selectedModel=modelSelect.value; const range=modelRanges[selectedModel]; const presets=getPresetValues(selectedModel); const info=document.getElementById('reasoningInfo'); if(!range) return; const noneBtn=document.querySelector('[data-value="0"]'); if (range.canDisable){ noneBtn.disabled=false; noneBtn.textContent='None'; } else { noneBtn.disabled=true; noneBtn.textContent='None (N/A)'; if(currentReasoningPreset==='none'){ currentReasoningPreset='low'; } } if (currentReasoningMode==='controlled'){ const val=presets[currentReasoningPreset]||presets.high; if (info) info.textContent = `${val} tokens (Range: ${range.min}-${range.max})`; } }
+        function updateReasoningUI(){
+          const modelSelect=document.getElementById('modelSelect');
+          const selectedModel=modelSelect.value;
+          const range=modelRanges[selectedModel];
+          const presets=getPresetValues(selectedModel);
+          const info=document.getElementById('reasoningInfo');
+          if(!range) return;
+          const noneBtn=document.querySelector('[data-value="0"]');
+          if (noneBtn){
+            if (range.canDisable){ noneBtn.disabled=false; noneBtn.textContent='None'; }
+            else { noneBtn.disabled=true; noneBtn.textContent='None (N/A)'; if(currentReasoningPreset==='none'){ currentReasoningPreset='low'; } }
+          }
+          if (currentReasoningMode==='controlled'){
+            const val=presets[currentReasoningPreset]||presets.high;
+            if (info) info.textContent = `${val} tokens (Range: ${range.min}-${range.max})`;
+          }
+        }
 
         function handlePersonalityChange(){ const preset=document.getElementById('personalityPreset').value; const customRow=document.getElementById('customInstructionsRow'); if (preset==='custom'){ customRow.style.display='block'; } else { customRow.style.display='none'; } localStorage.setItem('personalityPreset', preset); localStorage.setItem('customInstructions', document.getElementById('customInstructions').value); }
 
