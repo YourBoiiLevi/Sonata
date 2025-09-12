@@ -398,7 +398,7 @@
         }
 
         function refreshPrivateUI(){
-          if (appState.ephemeral.active){ showPrivateControls(true); showPrivateBadge(true); showPrivateToggle(false); showSavePrivate(appState.ephemeral.messages.length>0); }
+          if (appState.ephemeral.active){ showPrivateControls(true); showPrivateBadge(true); showPrivateToggle(false); showSavePrivate(true); }
           else if (appState.ui.newChatPending){ showPrivateControls(true); showPrivateBadge(false); showPrivateToggle(true); showSavePrivate(false); }
           else { showPrivateControls(false); showPrivateBadge(false); showPrivateToggle(false); showSavePrivate(false); }
         }
@@ -538,7 +538,7 @@
               const warn=document.createElement('div'); warn.className='warning'; warn.textContent='Saving will remove responses after this point and regenerate.';
               const btnRow=document.createElement('div'); btnRow.style.marginTop='8px'; btnRow.style.display='flex'; btnRow.style.gap='8px';
               const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{
-                const parts=[]; const textVal=collapseWhitespace(ta.value); if(textVal) parts.push({ text: textVal });
+                const parts=[]; const textVal=ta.value; if(textVal.trim()) parts.push({ text: textVal });
                 for (const a of editState.attachments){ if (a.removed) continue; if (a.inlineData) parts.push({ inlineData: a.inlineData }); else if (a.file){ const data=await fileToInlineData(a.file); parts.push({ inlineData: data }); } }
                 await storage.updateMessage(msg.id,{ parts, editedAt: Date.now(), originalText: editState.originalText||msg.parts?.find(p=>p.text)?.text||'' });
                 await storage.deleteMessagesAfter(msg.conversationId, msg.createdAt); delete appState.ui.editing[msg.id]; const updated=await storage.getMessage(msg.id); await refreshTranscript(); await regenerateFromEditedUser(updated);
@@ -549,7 +549,7 @@
             } else if (editState && editState.mode==='assistant'){
               const ta=document.createElement('textarea'); ta.className='edit-area'; ta.value=(msg.parts?.find(p=>p.text)?.text)||''; ta.oninput=(e)=>{ editState.text=e.target.value; };
               const btnRow=document.createElement('div'); btnRow.style.marginTop='8px'; btnRow.style.display='flex'; btnRow.style.gap='8px';
-              const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{ await storage.updateMessage(msg.id,{ parts:[{ text: collapseWhitespace(ta.value) }], editedAt: Date.now() }); delete appState.ui.editing[msg.id]; await refreshTranscript(); };
+              const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{ await storage.updateMessage(msg.id,{ parts:[{ text: ta.value }], editedAt: Date.now() }); delete appState.ui.editing[msg.id]; await refreshTranscript(); };
               const cancel=document.createElement('button'); cancel.className='small-btn'; cancel.textContent='Cancel'; cancel.onclick=()=>{ delete appState.ui.editing[msg.id]; renderTranscriptUI(messages); };
               btnRow.appendChild(save); btnRow.appendChild(cancel); content.appendChild(ta); content.appendChild(btnRow);
             } else {
@@ -600,14 +600,14 @@
               const title=document.createElement('span'); title.textContent=c.title||'(untitled)';
               const time=document.createElement('span'); time.style.fontSize='12px'; time.style.color='#666'; time.textContent=formatTime(c.deletedAt||c.updatedAt);
               const restore=document.createElement('button'); restore.className='small-btn'; restore.textContent='Restore'; restore.onclick=async()=>{ await storage.restoreConversation(c.id); await refreshChatsPanel(); };
-              const delp=document.createElement('button'); delp.className='small-btn'; delp.textContent='Delete Permanently'; delp.onclick=async()=>{ await storage.deleteConversationPermanently(c.id); await refreshChatsPanel(); };
+              const delp=document.createElement('button'); delp.className='small-btn'; delp.textContent='Delete Permanently'; delp.onclick=async()=>{ if(!confirm('Delete permanently? This cannot be undone.')) return; await storage.deleteConversationPermanently(c.id); await refreshChatsPanel(); };
               const open=document.createElement('button'); open.className='small-btn'; open.textContent='Open'; open.disabled=true;
               row.appendChild(title); row.appendChild(time); row.appendChild(open); row.appendChild(restore); row.appendChild(delp); trashEl.appendChild(row);
             });
           }
         }
 
-        function openChatsModal(){ document.getElementById('chatsModal').style.display='block'; refreshChatsPanel(); }
+        function openChatsModal(){ document.getElementById('chatsModal').style.display='block'; appState.ui.chatsTab='chats'; document.getElementById('tabChatsBtn').classList.add('active'); document.getElementById('tabTrashBtn').classList.remove('active'); refreshChatsPanel(); }
         function closeChatsModal(){ document.getElementById('chatsModal').style.display='none'; }
         function openSettingsModal(){ document.getElementById('settingsModal').style.display='block'; buildSettingsBody(); }
         function closeSettingsModal(){ document.getElementById('settingsModal').style.display='none'; }
