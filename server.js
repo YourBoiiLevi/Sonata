@@ -130,5 +130,4 @@ When analyzing media files (images, videos, audio), describe what you see/hear a
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
-  console.log('Make sure to set GEMINI_API_KEY environment variable');
 });

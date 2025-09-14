@@ -751,7 +751,9 @@
           document.getElementById('presencePenaltySlider').addEventListener('input', ()=>{ document.getElementById('presencePenaltyValue').textContent = parseFloat(document.getElementById('presencePenaltySlider').value).toFixed(1); });
           document.getElementById('frequencyPenaltySlider').addEventListener('input', ()=>{ document.getElementById('frequencyPenaltyValue').textContent = parseFloat(document.getElementById('frequencyPenaltySlider').value).toFixed(1); });
           document.getElementById('responseLogprobs').addEventListener('change', ()=>{ document.getElementById('logprobsRow').style.display = document.getElementById('responseLogprobs').checked ? 'block' : 'none'; });
-          const savedPreset = localStorage.getItem('personalityPreset'); if (savedPreset) document.getElementById('personalityPreset').value=savedPreset; const savedCustom = localStorage.getItem('customInstructions'); if (savedCustom) document.getElementById('customInstructions').value = savedCustom; handlePersonalityChange();
+          document.getElementById('personalityPreset').addEventListener('change', handlePersonalityChange);
+          document.getElementById('customInstructions').addEventListener('input', ()=>{ localStorage.setItem('customInstructions', document.getElementById('customInstructions').value); });
+          const savedPreset = localStorage.getItem('personalityPreset'); document.getElementById('personalityPreset').value = savedPreset || ''; const savedCustom = localStorage.getItem('customInstructions'); if (savedCustom) document.getElementById('customInstructions').value = savedCustom; handlePersonalityChange();
         }
 
         function updateReasoningUI(){
@@ -772,7 +774,7 @@
           }
         }
 
-        function handlePersonalityChange(){ const preset=document.getElementById('personalityPreset').value; const customRow=document.getElementById('customInstructionsRow'); if (preset==='custom'){ customRow.style.display='block'; } else { customRow.style.display='none'; } localStorage.setItem('personalityPreset', preset); localStorage.setItem('customInstructions', document.getElementById('customInstructions').value); }
+        function handlePersonalityChange(){ const preset=document.getElementById('personalityPreset').value; const customRow=document.getElementById('customInstructionsRow'); if (preset==='custom'){ customRow.style.display='block'; } else { customRow.style.display='none'; } localStorage.setItem('personalityPreset', preset); }
 
         document.addEventListener('DOMContentLoaded', async ()=>{
           document.getElementById('mediaInput').addEventListener('change', previewMedia);
