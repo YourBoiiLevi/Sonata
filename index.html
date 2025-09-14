@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gemini API Chat</title>
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.2/marked.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
@@ -59,6 +56,40 @@
         .conv-title { border:1px solid transparent; padding:4px 6px; border-radius:4px; }
         .conv-title[contenteditable="true"] { border-color:#ddd; background:#f9fafb; }
         .search-disabled { opacity:.6; pointer-events:none; }
+
+        /* Streaming renderer styles */
+        body[data-code-theme="dark"] { --code-bg: #0b1020; --code-border:#1e293b; --code-fg:#e2e8f0; }
+        body[data-code-theme="light"], body[data-code-theme="auto"] { --code-bg: #f8f9fb; --code-border:#dfe3ea; --code-fg:#0f172a; }
+        @media (prefers-color-scheme: dark) { body[data-code-theme="auto"] { --code-bg:#0b1020; --code-border:#1e293b; --code-fg:#e2e8f0; } }
+
+        .code-pre { overflow-x:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; padding:12px; background: var(--code-bg); border-radius:8px; }
+        .codeblock-container { margin: 12px 0; border:1px solid var(--code-border); border-radius:8px; overflow:hidden; background: var(--code-bg); }
+        .codeblock-header { display:flex; justify-content: space-between; align-items:center; padding: 8px 12px; background: rgba(125, 125, 125, 0.08); color: #64748b; font-size: 12px; }
+        .code-lang-label { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; text-transform: lowercase; }
+        .copy-btn { font-size: 12px; padding: 4px 8px; border:1px solid #cbd5e1; border-radius:6px; background: #fff; cursor:pointer; }
+        body[data-code-theme="dark"] .copy-btn { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+        .code-pane-light { display:block; }
+        .code-pane-dark { display:none; }
+        body[data-code-theme="dark"] .code-pane-light { display:none; }
+        body[data-code-theme="dark"] .code-pane-dark { display:block; }
+        body[data-code-theme="light"] .code-pane-light { display:block; }
+        body[data-code-theme="light"] .code-pane-dark { display:none; }
+        body[data-code-theme="auto"] .code-pane-light { display:block; }
+        body[data-code-theme="auto"] .code-pane-dark { display:none; }
+        @media (prefers-color-scheme: dark) { body[data-code-theme="auto"] .code-pane-light { display:none; } body[data-code-theme="auto"] .code-pane-dark { display:block; } }
+
+        .mermaid-spinner { display:flex; align-items:center; gap:8px; padding: 10px; justify-content:center; color:#64748b; }
+        .mermaid-spinner .spin { width:14px; height:14px; border:2px solid currentColor; border-bottom-color: transparent; border-radius:50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .mermaid-error { border:1px solid #fecaca; background: #fff1f2; color:#b91c1c; border-radius:6px; padding:10px; }
+        .mermaid-error .summary { font-size:12px; margin-bottom:6px; }
+        .mermaid-body svg { max-width:100%; height:auto; display:block; }
+
+        .spoiler { background: #0f172a; color:transparent; border-radius:3px; padding:0 4px; }
+        body[data-code-theme="light"] .spoiler { background: #e2e8f0; }
+        .spoiler.revealed { color: inherit; background: rgba(125,125,125,0.12); }
+        .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#e2e8f0; border:1px solid #cbd5e1; border-bottom-width:2px; border-radius:6px; padding:1px 4px; font-size: 0.85em; }
+        body[data-code-theme="dark"] .kbd { background:#0b1324; border-color:#1e293b; color:#e2e8f0; }
     </style>
 </head>
 <body>
@@ -158,9 +189,16 @@
         </div>
     </div>
 
+    <script type="module">
+      import { StreamingRenderer, initRenderingSettings, applyRenderingSettings } from './streaming-markdown.js';
+      window.StreamingRenderer = StreamingRenderer;
+      window.SONATA_initRenderingSettings = initRenderingSettings;
+      window.SONATA_applyRenderingSettings = applyRenderingSettings;
+    </script>
     <script>
         let selectedMedia = null;
         let currentController = null;
+        const streamingRenderers = {}; // msgId -> StreamingRenderer
 
         const modelRanges = {
             'gemini-2.5-pro': { min: 128, max: 32768, default: -1, canDisable: false },
@@ -319,15 +357,7 @@
           }
         };
 
-        function parseCustomMarkdown(text) {
-          text = text.replace(/\|\|(.*?)\|\|/g, '<span class="spoiler" onclick="this.classList.add(\'revealed\');">$1<\/span>');
-          text = text.replace(/\[\[(.*?)\]\]/g, '<kbd class="kbd">$1<\/kbd>');
-          text = text.replace(/==(.*?)==/g, '<mark>$1<\/mark>');
-          let html = marked.parse(text);
-          return html;
-        }
         function renderMath(el){ if (window.renderMathInElement) renderMathInElement(el,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}]}); }
-        function highlightCode(el){ if (window.Prism) Prism.highlightAllUnder(el); }
 
         function fileToInlineData(file) { return new Promise((resolve)=>{ const r=new FileReader(); r.onload=()=>{ const base64=r.result.split(',')[1]; resolve({ mimeType:file.type, data:base64 }); }; r.readAsDataURL(file); }); }
 
@@ -359,7 +389,7 @@
           const el = document.getElementById('transcript');
           if (!cid) { el.innerHTML = 'Start a conversation...'; return; }
           const msgs = await listMessages(cid);
-          renderTranscriptUI(msgs);
+          await renderTranscriptUI(msgs);
         }
 
         function clearMedia(){
@@ -513,14 +543,39 @@
 
         function collapseWhitespace(s){ return (s||'').replace(/\s+/g,' ').trim(); }
 
-        function renderTranscriptUI(messages){
-          const el=document.getElementById('transcript'); el.innerHTML='';
-          messages.forEach(msg=>{
-            const bubble=document.createElement('div'); bubble.className='bubble '+(msg.role==='user'?'user':'model');
-            const controls=document.createElement('div'); controls.className='controls';
-            const content=document.createElement('div');
+        async function renderTranscriptUI(messages){
+          const el = document.getElementById('transcript');
+          const existing = new Map(Array.from(el.querySelectorAll('[data-msg-id]')).map(b => [b.getAttribute('data-msg-id'), b]));
+          const seen = new Set();
+          if (!window._rendererByMsgId) window._rendererByMsgId = {};
 
+          for (const msg of messages) {
+            let bubble = existing.get(msg.id);
+            if (!bubble) {
+              bubble = document.createElement('div');
+              bubble.className = 'bubble ' + (msg.role==='user'?'user':'model');
+              bubble.setAttribute('data-msg-id', msg.id);
+              const content = document.createElement('div');
+              content.className = 'message-content';
+              const controls = document.createElement('div');
+              controls.className = 'controls';
+              bubble.appendChild(content);
+              bubble.appendChild(controls);
+            } else {
+              bubble.className = 'bubble ' + (msg.role==='user'?'user':'model');
+              const controls = bubble.querySelector('.controls');
+              if (controls) controls.innerHTML = '';
+              const content = bubble.querySelector('.message-content');
+              if (content) content.innerHTML = '';
+            }
+
+            el.appendChild(bubble);
+            seen.add(msg.id);
+
+            const content = bubble.querySelector('.message-content');
+            const controls = bubble.querySelector('.controls');
             const editState = appState.ui.editing[msg.id];
+            const textPart = (msg.parts && msg.parts.find(p=>p.text)) ? msg.parts.find(p=>p.text).text : '';
 
             if (editState && editState.mode==='user'){
               const ta=document.createElement('textarea'); ta.className='edit-area'; ta.value=editState.text||''; ta.oninput=(e)=>{ editState.text=e.target.value; };
@@ -537,12 +592,7 @@
               attWrap.appendChild(addInput);
               const warn=document.createElement('div'); warn.className='warning'; warn.textContent='Saving will remove responses after this point and regenerate.';
               const btnRow=document.createElement('div'); btnRow.style.marginTop='8px'; btnRow.style.display='flex'; btnRow.style.gap='8px';
-              const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{
-                const parts=[]; const textVal=ta.value; if(textVal.trim()) parts.push({ text: textVal });
-                for (const a of editState.attachments){ if (a.removed) continue; if (a.inlineData) parts.push({ inlineData: a.inlineData }); else if (a.file){ const data=await fileToInlineData(a.file); parts.push({ inlineData: data }); } }
-                await storage.updateMessage(msg.id,{ parts, editedAt: Date.now(), originalText: editState.originalText||msg.parts?.find(p=>p.text)?.text||'' });
-                await storage.deleteMessagesAfter(msg.conversationId, msg.createdAt); delete appState.ui.editing[msg.id]; const updated=await storage.getMessage(msg.id); await refreshTranscript(); await regenerateFromEditedUser(updated);
-              };
+              const save=document.createElement('button'); save.className='small-btn'; save.textContent='Save'; save.onclick=async()=>{ const parts=[]; const textVal=ta.value; if(textVal.trim()) parts.push({ text: textVal }); for (const a of editState.attachments){ if (a.removed) continue; if (a.inlineData) parts.push({ inlineData: a.inlineData }); else if (a.file){ const data=await fileToInlineData(a.file); parts.push({ inlineData: data }); } } await storage.updateMessage(msg.id,{ parts, editedAt: Date.now(), originalText: editState.originalText||msg.parts?.find(p=>p.text)?.text||'' }); await storage.deleteMessagesAfter(msg.conversationId, msg.createdAt); delete appState.ui.editing[msg.id]; const updated=await storage.getMessage(msg.id); await refreshTranscript(); await regenerateFromEditedUser(updated); };
               const cancel=document.createElement('button'); cancel.className='small-btn'; cancel.textContent='Cancel'; cancel.onclick=()=>{ delete appState.ui.editing[msg.id]; renderTranscriptUI(messages); };
               btnRow.appendChild(save); btnRow.appendChild(cancel);
               content.appendChild(ta); content.appendChild(attWrap); content.appendChild(warn); content.appendChild(btnRow);
@@ -553,12 +603,16 @@
               const cancel=document.createElement('button'); cancel.className='small-btn'; cancel.textContent='Cancel'; cancel.onclick=()=>{ delete appState.ui.editing[msg.id]; renderTranscriptUI(messages); };
               btnRow.appendChild(save); btnRow.appendChild(cancel); content.appendChild(ta); content.appendChild(btnRow);
             } else {
-              const textPart = (msg.parts && msg.parts.find(p=>p.text)) ? msg.parts.find(p=>p.text).text : '';
               if (msg.role==='user'){
                 const t=document.createElement('div'); t.innerHTML=escapeHTML(textPart||''); content.appendChild(t);
                 if (msg.parts){ msg.parts.forEach(p=>{ if (p.inlineData){ const att=document.createElement('div'); att.style.fontSize='12px'; att.style.color='#555'; att.textContent=`Attachment: ${p.inlineData.mimeType}`; content.appendChild(att); } }); }
               } else {
-                const html=parseCustomMarkdown(textPart||''); content.innerHTML=html; highlightCode(content); renderMath(content);
+                try {
+                  if (!window._rendererByMsgId[msg.id]) window._rendererByMsgId[msg.id] = new window.StreamingRenderer();
+                  await window._rendererByMsgId[msg.id].update(content, textPart||'');
+                } catch (e) {
+                  content.textContent = textPart||'';
+                }
               }
               const copyBtn=document.createElement('button'); copyBtn.className='small-btn'; copyBtn.textContent='Copy'; copyBtn.onclick=()=>{ const t=msg.parts?.map(p=>p.text||'').join('\n')||''; navigator.clipboard.writeText(t); };
               controls.appendChild(copyBtn);
@@ -571,9 +625,10 @@
                 controls.appendChild(ebtn); controls.appendChild(rbtn);
               }
             }
+          }
 
-            bubble.appendChild(content); bubble.appendChild(controls); el.appendChild(bubble);
-          });
+          // Remove bubbles not in current list
+          Array.from(existing.keys()).forEach(id => { if (!seen.has(id)) { const b = existing.get(id); if (b && b.parentNode===el) el.removeChild(b); } });
           el.scrollTop = el.scrollHeight;
         }
 
@@ -621,6 +676,73 @@
           section('Custom Instructions', `<div class="param-row"><label for="personalityPreset">Personality Preset:</label><select id="personalityPreset" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"><option value="">Default Assistant</option><option value="helpful">Helpful Assistant</option><option value="code_reviewer">Code Reviewer</option><option value="creative_writer">Creative Writer</option><option value="custom">Custom Instructions</option></select><div class="param-help">Choose a personality preset or use custom instructions</div></div><div class="param-row" id="customInstructionsRow" style="display:none;"><label for="customInstructions">Custom Instructions:</label><textarea id="customInstructions" placeholder="Enter custom instructions to add to the system prompt..." style="width:100%; height:100px; padding:8px; border:1px solid #ccc; border-radius:4px; resize:vertical; font-family:inherit;"></textarea></div>`);
           section('Output Parameters', `<div class="param-row"><label for="mediaResolution">Media Resolution:</label><select id="mediaResolution" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"><option value="">Default</option><option value="MEDIA_RESOLUTION_LOW">Low (64 tokens)</option><option value="MEDIA_RESOLUTION_MEDIUM">Medium (256 tokens)</option><option value="MEDIA_RESOLUTION_HIGH">High (256 tokens, zoomed)</option></select></div><div class="param-row"><label><input type="checkbox" id="responseLogprobs"> Response Log Probabilities</label></div><div class="param-row" id="logprobsRow" style="display:none;"><label for="logprobsInput">Log Probs Count:</label><input type="number" id="logprobsInput" min="1" max="5" value="1" style="width:80px;"></div>`);
 
+          // Rendering section
+          const codeMode = localStorage.getItem('sonata.codeThemeMode') || 'dark';
+          const lightTheme = localStorage.getItem('sonata.shikiLightTheme') || 'vitesse-light';
+          const darkTheme = localStorage.getItem('sonata.shikiDarkTheme') || 'vitesse-dark';
+          const mermaidTheme = localStorage.getItem('sonata.mermaidTheme') || 'neutral';
+
+          section('Rendering', `
+            <div class="param-row">
+              <label>Code Theme Mode:</label>
+              <select id="codeThemeMode" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                <option value="auto">Auto (prefers)</option>
+                <option value="dark">Force Dark</option>
+                <option value="light">Force Light</option>
+              </select>
+            </div>
+            <div class="param-row"><label>Dark Theme:</label>
+              <select id="shikiDarkTheme" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                <option value="vitesse-dark">vitesse-dark (default)</option>
+                <option value="ayu-dark">ayu-dark</option>
+                <option value="github-dark">github-dark</option>
+                <option value="one-dark-pro">one-dark-pro</option>
+              </select>
+            </div>
+            <div class="param-row"><label>Light Theme:</label>
+              <select id="shikiLightTheme" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                <option value="vitesse-light">vitesse-light</option>
+                <option value="github-light">github-light</option>
+                <option value="min-light">min-light</option>
+              </select>
+            </div>
+            <div class="param-row"><label>Mermaid Theme:</label>
+              <select id="mermaidTheme" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                <option value="neutral">neutral (default)</option>
+                <option value="default">default</option>
+              </select>
+            </div>
+            <div class="param-row"><label>Mermaid Security Level:</label>
+              <select id="mermaidSecurity" disabled style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                <option value="strict" selected>strict</option>
+              </select>
+            </div>
+          `);
+
+          // Init values
+          document.getElementById('codeThemeMode').value = codeMode;
+          document.getElementById('shikiDarkTheme').value = darkTheme;
+          document.getElementById('shikiLightTheme').value = lightTheme;
+          document.getElementById('mermaidTheme').value = mermaidTheme;
+
+          const rerenderAll = async () => {
+            window.SONATA_SHIKI_THEMES = [localStorage.getItem('sonata.shikiLightTheme') || 'vitesse-light', localStorage.getItem('sonata.shikiDarkTheme') || 'vitesse-dark'];
+            window.SONATA_applyRenderingSettings && window.SONATA_applyRenderingSettings();
+            if (window._rendererByMsgId) {
+              for (const id of Object.keys(window._rendererByMsgId)) {
+                try { await window._rendererByMsgId[id].forceRerenderAll(); } catch {}
+              }
+            }
+          };
+
+          document.getElementById('codeThemeMode').addEventListener('change', (e)=>{
+            const v=e.target.value; localStorage.setItem('sonata.codeThemeMode', v); window.SONATA_CODE_THEME_MODE=v; window.SONATA_applyRenderingSettings && window.SONATA_applyRenderingSettings();
+          });
+          document.getElementById('shikiDarkTheme').addEventListener('change', async (e)=>{ localStorage.setItem('sonata.shikiDarkTheme', e.target.value); await rerenderAll(); });
+          document.getElementById('shikiLightTheme').addEventListener('change', async (e)=>{ localStorage.setItem('sonata.shikiLightTheme', e.target.value); await rerenderAll(); });
+          document.getElementById('mermaidTheme').addEventListener('change', async (e)=>{ localStorage.setItem('sonata.mermaidTheme', e.target.value); window.SONATA_MERMAID_THEME=e.target.value; await rerenderAll(); });
+
+          // Existing listeners
           document.getElementById('reasoningToggle').addEventListener('change', ()=>{ const toggle=document.getElementById('reasoningToggle'); const presetsDiv=document.getElementById('reasoningPresets'); const modeLabel=document.getElementById('reasoningModeLabel'); if(toggle.checked){ currentReasoningMode='dynamic'; modeLabel.textContent='Dynamic'; presetsDiv.style.display='none'; } else { currentReasoningMode='controlled'; modeLabel.textContent='Controlled'; presetsDiv.style.display='block'; updateReasoningUI(); } });
           document.querySelectorAll('.preset-btn').forEach(btn=>{ btn.addEventListener('click', ()=>{ document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); currentReasoningPreset=btn.dataset.value; updateReasoningUI(); }); });
           document.getElementById('temperatureSlider').addEventListener('input', ()=>{ document.getElementById('temperatureValue').textContent = parseFloat(document.getElementById('temperatureSlider').value).toFixed(1); });
@@ -666,6 +788,9 @@
           document.getElementById('tabTrashBtn').addEventListener('click', ()=>{ appState.ui.chatsTab='trash'; document.getElementById('tabTrashBtn').classList.add('active'); document.getElementById('tabChatsBtn').classList.remove('active'); refreshChatsPanel(); });
           document.getElementById('messageInput').addEventListener('keypress', (e)=>{ if (e.key==='Enter'){ sendMessage(); } });
           window.addEventListener('click', function(event){ const sm=document.getElementById('settingsModal'); const cm=document.getElementById('chatsModal'); if (event.target===sm) closeSettingsModal(); if (event.target===cm) closeChatsModal(); });
+
+          // Rendering settings first
+          if (window.SONATA_initRenderingSettings) window.SONATA_initRenderingSettings();
 
           updateReasoningUI();
           await startupPurge();

@@ -40,7 +40,7 @@ app.post('/api/chat', async (req, res) => {
 
 ## Basic Formatting
 - Use **bold** for emphasis and *italics* for subtle emphasis
-- Use \`inline code\` for short code snippets and code blocks with language specification for longer code
+- Use \\\`inline code\\\` for short code snippets and code blocks with language specification for longer code
 - Use # ## ### for headers and - or * for bullet points
 - Use ==highlighted text== for important information (shown with yellow highlighting)
 - Use > for blockquotes and create tables, links, and other standard Markdown elements
@@ -53,7 +53,16 @@ app.post('/api/chat', async (req, res) => {
 - **Footnotes**: Use [^1] and footnote definitions
 
 ## Code Support
-- Use fenced code blocks with language tags
+- Use fenced code blocks with explicit language tags (for example, \\\`\\\`\\\`python and \\\`\\\`\\\`javascript) so the UI can apply proper syntax highlighting (Shiki)
+- Use \\\`\\\`\\\`mermaid fenced blocks for diagrams. Stream diagrams step by step if building them incrementally. Example:
+
+\\\`\\\`\\\`mermaid
+graph TD;
+  A[Start]-->B{Decision};
+  B -- Yes --> C[Do thing];
+  B -- No  --> D[Do other];
+\\\`\\\`\\\`
+
 - Only use advanced features when they help clarity
 
 When analyzing media files (images, videos, audio), describe what you see/hear and answer questions clearly.`;
